@@ -25,6 +25,7 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app/app .
+COPY database/migration /app/database/migration
 
 # Set environment variables (optional, adjust as needed)
 ENV APP_PORT=9000
@@ -33,4 +34,4 @@ ENV APP_PORT=9000
 EXPOSE ${APP_PORT}
 
 # Command to run the application
-CMD ["./app", "http"]
+CMD ["sh", "-c", "./app db:migrate up && ./app http-start"]
