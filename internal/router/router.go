@@ -3,10 +3,6 @@ package router
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
-	"github.com/hanifkf12/hanif_skeleton/internal/bootstrap"
-	"github.com/hanifkf12/hanif_skeleton/internal/handler"
-	"github.com/hanifkf12/hanif_skeleton/internal/repository/home"
-	"github.com/hanifkf12/hanif_skeleton/internal/usecase"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
 	"github.com/hanifkf12/hanif_skeleton/pkg/config"
 )
@@ -29,14 +25,14 @@ func (rtr *router) response(ctx *fiber.Ctx, resp appctx.Response) error {
 }
 
 func (rtr *router) Route() {
-	db := bootstrap.RegistryDatabase(rtr.cfg)
-	homeRepo := home.NewHomeRepository(db)
+	//db := bootstrap.RegistryDatabase(rtr.cfg)
+	//homeRepo := home.NewHomeRepository(db)
 
-	healthUseCase := usecase.NewHealth(homeRepo)
-	rtr.fiber.Get("/health", rtr.handle(
-		handler.HttpRequest,
-		healthUseCase,
-	))
+	//healthUseCase := usecase.NewHealth(homeRepo)
+	//rtr.fiber.Get("/health", rtr.handle(
+	//	handler.HttpRequest,
+	//	healthUseCase,
+	//))
 
 }
 

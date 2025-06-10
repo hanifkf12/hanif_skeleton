@@ -14,6 +14,7 @@ func Start() {
 		logger.Fatal(err)
 	}
 	application := app.InitializeApp(cfg)
+	application.SetupSocket()
 	err = application.Run()
 	if err != nil {
 		log.Fatal(err)
