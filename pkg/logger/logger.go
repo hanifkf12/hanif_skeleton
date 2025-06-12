@@ -46,11 +46,8 @@ func Any(key string, value interface{}) zap.Field {
 
 func Setup() {
 	// Set up the OpenTelemetry connection
-	ctx := context.Background()
-	conn, err := grpc.DialContext(ctx, "localhost:4317",
+	conn, err := grpc.NewClient("localhost:4317",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-		grpc.WithTimeout(5*time.Second),
 	)
 	if err != nil {
 		// Fall back to stdout-only logging if OTLP connection fails
@@ -61,10 +58,18 @@ func Setup() {
 		config.EncoderConfig.TimeKey = "timestamp"
 		config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 		config.EncoderConfig.EncodeDuration = zapcore.StringDurationEncoder
+		config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 		config.Encoding = "json"
 		config.OutputPaths = []string{"stdout"}
 		config.ErrorOutputPaths = []string{"stderr"}
-		log, _ = config.Build()
+		config.Sampling = &zap.SamplingConfig{
+			Initial:    100,
+			Thereafter: 100,
+		}
+		log, err = config.Build()
+		if err != nil {
+			panic(fmt.Sprintf("failed to initialize logger: %v", err))
+		}
 		return
 	}
 
@@ -81,8 +86,10 @@ func Setup() {
 	// Create OTLP encoder for logs sent to SignOz
 	otlpEncoder := zapotlpencoder.NewOTLPEncoder(encoderConfig)
 
-	// Create OTLP syncer
-	otlpSyncer = zapotlpsync.NewOtlpSyncer(conn, zapotlpsync.Options{})
+	// Create OTLP syncer with options
+	otlpSyncer = zapotlpsync.NewOtlpSyncer(conn, zapotlpsync.Options{
+		BatchSize: 100,
+	})
 
 	// Create core with both encoders
 	core := zapcore.NewTee(
@@ -97,6 +104,9 @@ func Setup() {
 		zap.AddCallerSkip(1),
 		zap.AddStacktrace(zapcore.ErrorLevel),
 		zap.Fields(zap.String("service.name", "hanif-skeleton")),
+		zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+			return zapcore.NewSamplerWithOptions(core, time.Second, 100, 100)
+		}),
 	)
 }
 
