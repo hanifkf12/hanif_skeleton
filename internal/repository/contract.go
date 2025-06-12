@@ -12,4 +12,6 @@ type HomeRepository interface {
 type UserRepository interface {
 	GetUsers(ctx context.Context) ([]entity.User, error)
 	CreateUser(ctx context.Context, user entity.CreateUserRequest) (int64, error)
+	UpdateUser(ctx context.Context, user entity.UpdateUserRequest) error
+	DeleteUser(ctx context.Context, id int64) error
 }

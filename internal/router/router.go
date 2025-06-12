@@ -51,6 +51,18 @@ func (rtr *router) Route() {
 		handler.HttpRequest,
 		createUserUseCase,
 	))
+
+	updateUserUseCase := usecase.NewUpdateUser(userRepository)
+	rtr.fiber.Put("/users/:id", rtr.handle(
+		handler.HttpRequest,
+		updateUserUseCase,
+	))
+
+	deleteUserUseCase := usecase.NewDeleteUser(userRepository)
+	rtr.fiber.Delete("/users/:id", rtr.handle(
+		handler.HttpRequest,
+		deleteUserUseCase,
+	))
 }
 
 func NewRouter(cfg *config.Config, fiber fiber.Router) Router {
