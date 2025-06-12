@@ -10,6 +10,9 @@ import (
 
 func Start() {
 	logger.Setup()
+	// Ensure logger is properly cleaned up on shutdown
+	defer logger.Cleanup()
+
 	cfg, err := config.LoadAllConfigs()
 	if err != nil {
 		logger.Fatal(err.Error())

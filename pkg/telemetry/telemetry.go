@@ -20,7 +20,7 @@ var (
 	tracerProvider *sdktrace.TracerProvider
 )
 
-// InitTracer initializes the global tracer
+// InitTracer initializes the global tracer and configures log correlation
 func InitTracer(serviceName string) (func(), error) {
 	ctx := context.Background()
 
@@ -32,6 +32,12 @@ func InitTracer(serviceName string) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)
 	}
+
+	// Set global propagator for trace context propagation
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
 	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
 	if err != nil {

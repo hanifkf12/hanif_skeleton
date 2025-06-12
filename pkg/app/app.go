@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/hanifkf12/hanif_skeleton/internal/router"
 	"github.com/hanifkf12/hanif_skeleton/pkg/config"
+	"github.com/hanifkf12/hanif_skeleton/pkg/middleware"
 )
 
 type App struct {
@@ -15,6 +16,9 @@ type App struct {
 
 func InitializeApp(cfg *config.Config) *App {
 	f := fiber.New(fiber.Config{})
+
+	// Add global trace middleware to ensure all requests are traced
+	f.Use(middleware.TraceMiddleware())
 
 	rtr := router.NewRouter(cfg, f)
 
