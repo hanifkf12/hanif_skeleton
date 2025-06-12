@@ -12,14 +12,14 @@ type userRepository struct {
 	db databasex.Database
 }
 
-func (r *userRepository) GetUsers(ctx context.Context) ([]entity.User, error) {
+func (u *userRepository) GetUsers(ctx context.Context) ([]entity.User, error) {
 	ctx, span := telemetry.StartSpan(ctx, "userRepository.GetUsers")
 	defer span.End()
 
 	var users []entity.User
 	query := `SELECT id, name, email, username, created_at, updated_at FROM users`
 
-	err := r.db.Select(ctx, &users, query)
+	err := u.db.Select(ctx, &users, query)
 	if err != nil {
 		return nil, err
 	}

@@ -45,6 +45,12 @@ func (rtr *router) Route() {
 		handler.HttpRequest,
 		userUseCase,
 	))
+
+	createUserUseCase := usecase.NewCreateUser(userRepository)
+	rtr.fiber.Post("/users", rtr.handle(
+		handler.HttpRequest,
+		createUserUseCase,
+	))
 }
 
 func NewRouter(cfg *config.Config, fiber fiber.Router) Router {

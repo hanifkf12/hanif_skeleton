@@ -11,4 +11,5 @@ type HomeRepository interface {
 
 type UserRepository interface {
 	GetUsers(ctx context.Context) ([]entity.User, error)
+	CreateUser(ctx context.Context, user entity.CreateUserRequest) (int64, error)
 }

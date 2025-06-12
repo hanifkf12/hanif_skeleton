@@ -14,14 +14,14 @@ type health struct {
 
 func (h *health) Serve(data appctx.Data) appctx.Response {
 	var (
-		lf = logger.NewFields(logger.EventName("Testt"))
+		lf = logger.NewFields("Test")
 	)
 	lf.Append(logger.Any("data", "datalllll"))
 	list, err := h.homeRepo.GetAdmin(data.FiberCtx.UserContext(), "aaaaa")
 	if err != nil {
 		return *appctx.NewResponse().WithCode(fiber.StatusInternalServerError).WithErrors(err.Error())
 	}
-	logger.Info("OKKKK", lf...)
+	logger.Info("OKKKK", lf)
 	return *appctx.NewResponse().WithCode(fiber.StatusOK).WithData("Pong").WithData(list)
 }
 
