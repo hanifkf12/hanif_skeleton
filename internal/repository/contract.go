@@ -8,3 +8,7 @@ import (
 type HomeRepository interface {
 	GetAdmin(ctx context.Context, data any) ([]entity.Admin, error)
 }
+
+type UserRepository interface {
+	GetUsers(ctx context.Context) ([]entity.User, error)
+}

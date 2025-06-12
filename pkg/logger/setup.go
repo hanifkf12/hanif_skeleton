@@ -12,8 +12,8 @@ func SetJSONFormatter() {
 	})
 }
 
-func Setup() {
-	SetJSONFormatter()
-	logrus.SetLevel(logrus.InfoLevel)
-
-}
+//func Setup() {
+//	SetJSONFormatter()
+//	logrus.SetLevel(logrus.InfoLevel)
+//
+//}

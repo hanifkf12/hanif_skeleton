@@ -7,6 +7,8 @@ import (
 	"log"
 )
 
+type test func(c *websocket.Conn)
+
 func (app *App) SetupSocket() {
 	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {

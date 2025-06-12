@@ -1,0 +1,68 @@
+version: "3"
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:22.3.7.5-alpine
+    ports:
+      - "9000:9000"
+      - "8123:8123"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    command: ["--user", "default", "--password", "signoz"]
+
+  otel-collector:
+    image: signoz/signoz-otel-collector:0.88.12
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+    depends_on:
+      - clickhouse
+
+  signoz-frontend:
+    image: signoz/frontend:0.27.0
+    ports:
+      - "3301:3301"
+    environment:
+      - REACT_APP_API_BASE_URL=http://localhost:8080
+    depends_on:
+      - signoz-backend
+
+  signoz-backend:
+    image: signoz/backend:0.27.0
+    ports:
+      - "8080:8080"
+    environment:
+      - SIGNOZ_OTEL_GRPC_ENDPOINT=otel-collector:4317
+      - SIGNOZ_OTEL_HTTP_ENDPOINT=otel-collector:4318
+      - SIGNOZ_QUERY_SERVICE_URL=http://query-service:8080
+      - SIGNOZ_REDIS_URL=redis:6379
+    depends_on:
+      - otel-collector
+      - redis
+      - query-service
+
+  query-service:
+    image: signoz/query-service:0.27.0
+    ports:
+      - "8085:8085"
+    environment:
+      - SIGNOZ_QUERY_SERVICE_PORT=8085
+      - SIGNOZ_OTEL_GRPC_ENDPOINT=otel-collector:4317
+      - SIGNOZ_OTEL_HTTP_ENDPOINT=otel-collector:4318
+      - SIGNOZ_REDIS_URL=redis:6379
+    depends_on:
+      - otel-collector
+      - redis
+
+  redis:
+    image: redis:6.2.5
+    ports:
+      - "6379:6379"
+
+volumes:
+  clickhouse-data: 
