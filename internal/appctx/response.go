@@ -14,6 +14,7 @@ var (
 type Response struct {
 	Code      int         `json:"code,omitempty"`
 	Status    bool        `json:"status,omitempty"`
+	Message   string      `json:"message,omitempty"`
 	Timestamp time.Time   `json:"timestamp"`
 	Data      interface{} `json:"data,omitempty"`
 	Errors    interface{} `json:"errors,omitempty"`
@@ -26,6 +27,12 @@ func (r *Response) WithCode(code int) *Response {
 
 func (r *Response) WithStatus(status bool) *Response {
 	r.Status = status
+
+	return r
+}
+
+func (r *Response) WithMessage(message string) *Response {
+	r.Message = message
 
 	return r
 }

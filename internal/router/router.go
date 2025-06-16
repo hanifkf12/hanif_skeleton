@@ -5,6 +5,7 @@ import (
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/bootstrap"
 	"github.com/hanifkf12/hanif_skeleton/internal/handler"
+	"github.com/hanifkf12/hanif_skeleton/internal/repository/campaign"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository/home"
 	userRepo "github.com/hanifkf12/hanif_skeleton/internal/repository/user"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase"
@@ -30,9 +31,10 @@ func (rtr *router) response(ctx *fiber.Ctx, resp appctx.Response) error {
 }
 
 func (rtr *router) Route() {
-	db := bootstrap.RegistryDatabase(rtr.cfg)
+	db := bootstrap.RegistryDatabase(rtr.cfg, true)
 	homeRepo := home.NewHomeRepository(db)
 	userRepository := userRepo.NewUserRepository(db)
+	campaignRepository := campaign.NewCampaignRepository(db)
 
 	healthUseCase := usecase.NewHealth(homeRepo)
 	rtr.fiber.Get("/health", rtr.handle(
@@ -47,6 +49,31 @@ func (rtr *router) Route() {
 	))
 
 	createUserUseCase := usecase.NewCreateUser(userRepository)
+
+	// Campaign routes
+	campaignUseCase := usecase.NewCampaign(campaignRepository)
+	rtr.fiber.Get("/campaigns", rtr.handle(
+		handler.HttpRequest,
+		campaignUseCase,
+	))
+
+	createCampaignUseCase := usecase.NewCreateCampaign(campaignRepository)
+	rtr.fiber.Post("/campaigns", rtr.handle(
+		handler.HttpRequest,
+		createCampaignUseCase,
+	))
+
+	updateCampaignUseCase := usecase.NewUpdateCampaign(campaignRepository)
+	rtr.fiber.Put("/campaigns", rtr.handle(
+		handler.HttpRequest,
+		updateCampaignUseCase,
+	))
+
+	deleteCampaignUseCase := usecase.NewDeleteCampaign(campaignRepository)
+	rtr.fiber.Delete("/campaigns/:id", rtr.handle(
+		handler.HttpRequest,
+		deleteCampaignUseCase,
+	))
 	rtr.fiber.Post("/users", rtr.handle(
 		handler.HttpRequest,
 		createUserUseCase,
