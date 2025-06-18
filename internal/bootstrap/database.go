@@ -11,7 +11,7 @@ func RegistryDatabase(cfg *config.Config, mock bool) databasex.Database {
 		return databasex.NewMockDB()
 	}
 	
-	database, err := databasex.NewMySql(cfg)
+	database, err := databasex.NewPostgres(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}

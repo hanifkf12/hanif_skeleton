@@ -1,6 +1,7 @@
 package config
 
 type Database struct {
+	Driver   string `mapstructure:"db_driver"`
 	Host     string `mapstructure:"db_host"`
 	Port     string `mapstructure:"db_port"`
 	Username string `mapstructure:"db_username"`

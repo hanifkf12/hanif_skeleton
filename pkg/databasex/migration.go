@@ -3,10 +3,13 @@ package databasex
 import (
 	"flag"
 	"fmt"
-	"github.com/hanifkf12/hanif_skeleton/pkg/config"
-	"github.com/pressly/goose/v3"
 	"log"
 	"os"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/hanifkf12/hanif_skeleton/pkg/config"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 )
 
 var (
@@ -60,8 +63,23 @@ func DatabaseMigration(cfg *config.Config) {
 
 	command := args[0]
 
-	db, err := goose.OpenDBWithDriver("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
-		cfg.Database.Username, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.Name))
+	var dbDriver string
+	var dbConnStr string
+
+	switch cfg.Database.Driver {
+	case "mysql":
+		dbDriver = "mysql"
+		dbConnStr = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
+			cfg.Database.Username, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
+	case "postgres", "pgx":
+		dbDriver = cfg.Database.Driver
+		dbConnStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			cfg.Database.Host, cfg.Database.Port, cfg.Database.Username, cfg.Database.Password, cfg.Database.Name)
+	default:
+		log.Fatalf("Unsupported database driver: %s", cfg.Database.Driver)
+	}
+
+	db, err := goose.OpenDBWithDriver(dbDriver, dbConnStr)
 
 	if err != nil {
 		log.Fatal(err)

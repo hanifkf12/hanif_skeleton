@@ -7,7 +7,7 @@ import (
 
 func (u *userRepository) CreateUser(ctx context.Context, user entity.CreateUserRequest) (int64, error) {
 	// Define insert query
-	query := "INSERT INTO users (username, email, password) VALUES (?, ?, ?)"
+	query := "INSERT INTO users (username, email, password) VALUES ($1, $2, $3)"
 
 	// Execute query and get result
 	result, err := u.db.Exec(ctx, query, user.Username, user.Email, user.Password)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -93,6 +94,14 @@ func GetTraceID(ctx context.Context) string {
 		return spanCtx.TraceID().String()
 	}
 	return ""
+}
+
+// SpanError records an error in the current span
+func SpanError(ctx context.Context, err error) {
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 }
 
 // GetSpanID returns the span ID from the context

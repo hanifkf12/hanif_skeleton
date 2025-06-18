@@ -31,7 +31,7 @@ func (rtr *router) response(ctx *fiber.Ctx, resp appctx.Response) error {
 }
 
 func (rtr *router) Route() {
-	db := bootstrap.RegistryDatabase(rtr.cfg, true)
+	db := bootstrap.RegistryDatabase(rtr.cfg, false)
 	homeRepo := home.NewHomeRepository(db)
 	userRepository := userRepo.NewUserRepository(db)
 	campaignRepository := campaign.NewCampaignRepository(db)
