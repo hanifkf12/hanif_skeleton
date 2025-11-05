@@ -1,14 +1,16 @@
 package config
 
 import (
+	"log"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
-	"log"
 )
 
 type Config struct {
 	App      `mapstructure:",squash"`
 	Database `mapstructure:",squash"`
+	Storage  `mapstructure:",squash"`
 }
 
 func LoadAllConfigs() (*Config, error) {
