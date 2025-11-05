@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"log"
+
 	"github.com/hanifkf12/hanif_skeleton/cmd/http"
 	"github.com/hanifkf12/hanif_skeleton/cmd/migration"
+	"github.com/hanifkf12/hanif_skeleton/cmd/pubsub"
 	"github.com/spf13/cobra"
-	"log"
 )
 
 func Start() {
@@ -32,7 +34,13 @@ func Start() {
 				http.Start()
 			},
 		},
-
+		{
+			Use:   "pubsub",
+			Short: "pubsub worker",
+			Run: func(cmd *cobra.Command, args []string) {
+				pubsub.Start()
+			},
+		},
 		migrateCmd,
 	}
 
