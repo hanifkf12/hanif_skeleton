@@ -15,6 +15,7 @@ type Config struct {
 	JWT        `mapstructure:",squash"`
 	Cache      `mapstructure:",squash"`
 	HTTPClient `mapstructure:",squash"`
+	Queue      `mapstructure:",squash"`
 }
 
 func LoadAllConfigs() (*Config, error) {

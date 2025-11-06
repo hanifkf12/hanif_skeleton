@@ -6,6 +6,7 @@ import (
 	"github.com/hanifkf12/hanif_skeleton/cmd/http"
 	"github.com/hanifkf12/hanif_skeleton/cmd/migration"
 	"github.com/hanifkf12/hanif_skeleton/cmd/pubsub"
+	"github.com/hanifkf12/hanif_skeleton/cmd/worker"
 	"github.com/spf13/cobra"
 )
 
@@ -41,6 +42,7 @@ func Start() {
 				pubsub.Start()
 			},
 		},
+		worker.WorkerCmd,
 		migrateCmd,
 	}
 
