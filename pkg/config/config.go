@@ -13,6 +13,7 @@ type Config struct {
 	Storage  `mapstructure:",squash"`
 	Crypto   `mapstructure:",squash"`
 	JWT      `mapstructure:",squash"`
+	Cache    `mapstructure:",squash"`
 }
 
 func LoadAllConfigs() (*Config, error) {
