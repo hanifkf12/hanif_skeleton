@@ -68,6 +68,10 @@ func (rtr *router) Route() {
 	userRepository := userRepo.NewUserRepository(db)
 	campaignRepository := campaign.NewCampaignRepository(db)
 
+	// Initialize JWT
+	jwtInstance := bootstrap.RegistryJWT(rtr.cfg)
+	hasher := bootstrap.RegistryBcryptHasher(rtr.cfg)
+
 	// Public routes - no middleware
 	healthUseCase := usecase.NewHealth(homeRepo)
 	rtr.fiber.Get("/health", rtr.handle(
@@ -75,15 +79,28 @@ func (rtr *router) Route() {
 		healthUseCase,
 	))
 
-	// Protected routes with Bearer Auth
+	// Auth routes - public
+	loginUseCase := usecase.NewLogin(userRepository, hasher, jwtInstance)
+	rtr.fiber.Post("/auth/login", rtr.handle(
+		handler.HttpRequest,
+		loginUseCase,
+	))
+
+	refreshTokenUseCase := usecase.NewRefreshToken(jwtInstance)
+	rtr.fiber.Post("/auth/refresh", rtr.handle(
+		handler.HttpRequest,
+		refreshTokenUseCase,
+	))
+
+	// Protected routes with JWT Auth
 	userUseCase := usecase.NewUser(userRepository)
 	rtr.fiber.Get("/users", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		userUseCase,
-		middleware.BearerAuth([]string{"valid-token-123", "admin-token-456"}),
+		middleware.JWTAuth(jwtInstance),
 	))
 
-	// Protected route with API Key
+	// Protected route with API Key (alternative auth method)
 	campaignUseCase := usecase.NewCampaign(campaignRepository)
 	rtr.fiber.Get("/campaigns", rtr.handleWithMiddleware(
 		handler.HttpRequest,
@@ -91,21 +108,21 @@ func (rtr *router) Route() {
 		middleware.APIKeyAuth("X-API-Key", []string{"api-key-123", "api-key-456"}),
 	))
 
-	// Protected route with HMAC + Content Type validation
+	// Protected route with JWT + Content Type validation
 	createCampaignUseCase := usecase.NewCreateCampaign(campaignRepository)
 	rtr.fiber.Post("/campaigns", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		createCampaignUseCase,
-		middleware.HMACAuth("your-hmac-secret-key"),
+		middleware.JWTAuth(jwtInstance),
 		middleware.ContentTypeValidator([]string{"application/json"}),
 	))
 
-	// Protected route with multiple middlewares
+	// Protected route with JWT
 	updateCampaignUseCase := usecase.NewUpdateCampaign(campaignRepository)
 	rtr.fiber.Put("/campaigns", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		updateCampaignUseCase,
-		middleware.BearerAuth([]string{"valid-token-123"}),
+		middleware.JWTAuth(jwtInstance),
 		middleware.ContentTypeValidator([]string{"application/json"}),
 	))
 
@@ -113,15 +130,16 @@ func (rtr *router) Route() {
 	rtr.fiber.Delete("/campaigns/:id", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		deleteCampaignUseCase,
-		middleware.BearerAuth([]string{"valid-token-123", "admin-token-456"}),
+		middleware.JWTAuth(jwtInstance),
 	))
 
-	// User routes with different middleware combinations
+	// User routes with JWT + Role-based access control
 	createUserUseCase := usecase.NewCreateUser(userRepository)
 	rtr.fiber.Post("/users", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		createUserUseCase,
-		middleware.BearerAuth([]string{"admin-token-456"}), // Only admin can create users
+		middleware.JWTAuth(jwtInstance),
+		middleware.RequireRole([]string{"admin"}), // Only admin can create users
 		middleware.ContentTypeValidator([]string{"application/json"}),
 	))
 
@@ -129,7 +147,7 @@ func (rtr *router) Route() {
 	rtr.fiber.Put("/users/:id", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		updateUserUseCase,
-		middleware.BearerAuth([]string{"valid-token-123", "admin-token-456"}),
+		middleware.JWTAuth(jwtInstance),
 		middleware.ContentTypeValidator([]string{"application/json"}),
 	))
 
@@ -137,15 +155,25 @@ func (rtr *router) Route() {
 	rtr.fiber.Delete("/users/:id", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		deleteUserUseCase,
-		middleware.BearerAuth([]string{"admin-token-456"}), // Only admin can delete
+		middleware.JWTAuth(jwtInstance),
+		middleware.RequireRole([]string{"admin"}), // Only admin can delete
 	))
 
-	// Example: IP whitelist for sensitive endpoints
+	// Example: HMAC protected endpoint (for webhooks, external APIs, etc.)
+	// rtr.fiber.Post("/webhooks/payment", rtr.handleWithMiddleware(
+	// 	handler.HttpRequest,
+	// 	paymentWebhookUseCase,
+	// 	middleware.HMACAuth("your-hmac-secret-key"),
+	// 	middleware.ContentTypeValidator([]string{"application/json"}),
+	// ))
+
+	// Example: IP whitelist for admin endpoints
 	// rtr.fiber.Get("/admin/stats", rtr.handleWithMiddleware(
 	// 	handler.HttpRequest,
 	// 	statsUseCase,
 	// 	middleware.IPWhitelist([]string{"127.0.0.1", "10.0.0.1"}),
-	// 	middleware.BearerAuth([]string{"admin-token-456"}),
+	// 	middleware.JWTAuth(jwtInstance),
+	// 	middleware.RequireRole([]string{"admin"}),
 	// ))
 
 	// Example: Rate limited public endpoint
