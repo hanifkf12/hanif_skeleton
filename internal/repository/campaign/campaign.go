@@ -2,10 +2,12 @@ package campaign
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/pkg/databasex"
+	"github.com/hanifkf12/hanif_skeleton/pkg/sqlbuilder"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
 
@@ -18,8 +20,13 @@ func (c *campaignRepository) Create(ctx context.Context, campaign *entity.Campai
 	defer span.End()
 
 	campaign.ID = uuid.New().String()
-	query := `INSERT INTO campaigns (id, name, target_donation, end_date) VALUES (?, ?, ?, ?)`
-	_, err := c.db.Exec(ctx, query, campaign.ID, campaign.Name, campaign.TargetDonation, campaign.EndDate)
+
+	// Using SQL Builder for cleaner code
+	model := sqlbuilder.NewModel(c.db, campaign)
+	_, err := model.
+		Table("campaigns").
+		Insert(ctx, campaign)
+
 	return err
 }
 
@@ -27,8 +34,13 @@ func (c *campaignRepository) Update(ctx context.Context, campaign *entity.Campai
 	ctx, span := telemetry.StartSpan(ctx, "CampaignRepository.Update")
 	defer span.End()
 
-	query := `UPDATE campaigns SET name = ?, target_donation = ?, end_date = ? WHERE id = ?`
-	_, err := c.db.Exec(ctx, query, campaign.Name, campaign.TargetDonation, campaign.EndDate, campaign.ID)
+	// Using SQL Builder for cleaner code
+	model := sqlbuilder.NewModel(c.db, campaign)
+	_, err := model.
+		Table("campaigns").
+		Where("id = ?", campaign.ID).
+		Update(ctx, campaign)
+
 	return err
 }
 
@@ -36,8 +48,13 @@ func (c *campaignRepository) Delete(ctx context.Context, id string) error {
 	ctx, span := telemetry.StartSpan(ctx, "CampaignRepository.Delete")
 	defer span.End()
 
-	query := `DELETE FROM campaigns WHERE id = ?`
-	_, err := c.db.Exec(ctx, query, id)
+	// Using SQL Builder for cleaner code
+	model := sqlbuilder.NewModel(c.db, nil)
+	_, err := model.
+		Table("campaigns").
+		Where("id = ?", id).
+		Delete(ctx)
+
 	return err
 }
 
@@ -45,12 +62,19 @@ func (c *campaignRepository) GetByID(ctx context.Context, id string) (*entity.Ca
 	ctx, span := telemetry.StartSpan(ctx, "CampaignRepository.GetByID")
 	defer span.End()
 
-	query := `SELECT * FROM campaigns WHERE id = ?`
 	var campaign entity.Campaign
-	err := c.db.Get(ctx, &campaign, query, id)
+
+	// Using SQL Builder for cleaner code
+	model := sqlbuilder.NewModel(c.db, &campaign)
+	err := model.
+		Table("campaigns").
+		Where("id = ?", id).
+		First(ctx, &campaign)
+
 	if err != nil {
 		return nil, err
 	}
+
 	return &campaign, nil
 }
 
@@ -58,12 +82,19 @@ func (c *campaignRepository) GetAll(ctx context.Context) ([]entity.Campaign, err
 	ctx, span := telemetry.StartSpan(ctx, "CampaignRepository.GetAll")
 	defer span.End()
 
-	query := `SELECT * FROM campaigns`
 	var campaigns []entity.Campaign
-	err := c.db.Select(ctx, &campaigns, query)
+
+	// Using SQL Builder for cleaner code
+	model := sqlbuilder.NewModel(c.db, &entity.Campaign{})
+	err := model.
+		Table("campaigns").
+		OrderBy("created_at", "DESC").
+		GetAll(ctx, &campaigns)
+
 	if err != nil {
 		return nil, err
 	}
+
 	return campaigns, nil
 }
 

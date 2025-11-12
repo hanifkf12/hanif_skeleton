@@ -5,6 +5,7 @@ import (
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/pkg/databasex"
+	"github.com/hanifkf12/hanif_skeleton/pkg/sqlbuilder"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
 
@@ -17,9 +18,14 @@ func (u *userRepository) GetUsers(ctx context.Context) ([]entity.User, error) {
 	defer span.End()
 
 	var users []entity.User
-	query := `SELECT id, name, email, username, created_at, updated_at FROM users`
 
-	err := u.db.Select(ctx, &users, query)
+	// Using SQL Builder for cleaner code
+	model := sqlbuilder.NewModel(u.db, &entity.User{})
+	err := model.
+		Table("users").
+		Select("id", "name", "email", "username", "created_at", "updated_at").
+		GetAll(ctx, &users)
+
 	if err != nil {
 		return nil, err
 	}
