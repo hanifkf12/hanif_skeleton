@@ -25,3 +25,12 @@ type UpdateCampaignRequest struct {
 	TargetDonation float64   `json:"target_donation" validate:"required,gt=0"`
 	EndDate        time.Time `json:"end_date" validate:"required,gt=now"`
 }
+
+type GetCampaignByIDResponse struct {
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	TargetDonation float64   `json:"target_donation"`
+	EndDate        time.Time `json:"end_date"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}

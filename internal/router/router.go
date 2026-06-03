@@ -108,6 +108,14 @@ func (rtr *router) Route() {
 		middleware.APIKeyAuth("X-API-Key", []string{"api-key-123", "api-key-456"}),
 	))
 
+	// GET /campaigns/:id - get a single campaign by ID (API Key protected)
+	getCampaignByIDUseCase := usecase.NewGetCampaignByID(campaignRepository)
+	rtr.fiber.Get("/campaigns/:id", rtr.handleWithMiddleware(
+		handler.HttpRequest,
+		getCampaignByIDUseCase,
+		middleware.APIKeyAuth("X-API-Key", []string{"api-key-123", "api-key-456"}),
+	))
+
 	// Protected route with JWT + Content Type validation
 	createCampaignUseCase := usecase.NewCreateCampaign(campaignRepository)
 	rtr.fiber.Post("/campaigns", rtr.handleWithMiddleware(
@@ -141,6 +149,14 @@ func (rtr *router) Route() {
 		middleware.JWTAuth(jwtInstance),
 		middleware.RequireRole([]string{"admin"}), // Only admin can create users
 		middleware.ContentTypeValidator([]string{"application/json"}),
+	))
+
+	// GET /users/:id - get a single user by ID (JWT protected)
+	getUserByIDUseCase := usecase.NewGetUserByID(userRepository)
+	rtr.fiber.Get("/users/:id", rtr.handleWithMiddleware(
+		handler.HttpRequest,
+		getUserByIDUseCase,
+		middleware.JWTAuth(jwtInstance),
 	))
 
 	updateUserUseCase := usecase.NewUpdateUser(userRepository)

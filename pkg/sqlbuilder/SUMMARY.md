@@ -29,15 +29,18 @@ pkg/sqlbuilder/
 - ✅ GROUP BY dan HAVING
 - ✅ ORDER BY, LIMIT, OFFSET
 - ✅ Pagination dengan metadata lengkap
+- ✅ **Multi-Database Support (MySQL & PostgreSQL)** 🆕
 
 ### Advanced Features
 - ✅ Bulk Insert
-- ✅ Upsert (ON DUPLICATE KEY UPDATE untuk MySQL)
+- ✅ Upsert (ON DUPLICATE KEY UPDATE untuk MySQL, ON CONFLICT untuk PostgreSQL)
 - ✅ Conditional WHERE builder
 - ✅ CASE WHEN builder
 - ✅ Raw query support
 - ✅ Count dan Exists helpers
 - ✅ Helper functions (FindByID, DeleteByID, etc)
+- ✅ **Automatic placeholder conversion** 🆕
+- ✅ **Runtime driver switching** 🆕
 
 ### Utilities
 - ✅ StructToMap - Convert struct to map
@@ -56,7 +59,7 @@ PASS
 ok      github.com/hanifkf12/hanif_skeleton/pkg/sqlbuilder
 ```
 
-**29 test cases** covering:
+**43 test cases** covering:
 - SELECT queries (simple, complex, joins)
 - WHERE conditions (AND, OR, IN, BETWEEN, NULL)
 - INSERT, UPDATE, DELETE operations
@@ -64,6 +67,10 @@ ok      github.com/hanifkf12/hanif_skeleton/pkg/sqlbuilder
 - Conditional builder
 - Bulk operations
 - Advanced features
+- **MySQL placeholder support (?)** 🆕
+- **PostgreSQL placeholder support ($1, $2, ...)** 🆕
+- **Multi-database operations** 🆕
+- **Driver switching** 🆕
 
 ## 📝 Usage Examples
 

@@ -120,18 +120,33 @@ func (cb *ConditionalBuilder) IsEmpty() bool {
 
 // BulkInsertBuilder helps build bulk insert queries
 type BulkInsertBuilder struct {
-	table   string
-	columns []string
-	values  [][]interface{}
+	table      string
+	columns    []string
+	values     [][]interface{}
+	driverType DriverType
 }
 
-// NewBulkInsertBuilder creates a new bulk insert builder
+// NewBulkInsertBuilder creates a new bulk insert builder with default driver
 func NewBulkInsertBuilder(table string) *BulkInsertBuilder {
 	return &BulkInsertBuilder{
-		table:   table,
-		columns: []string{},
-		values:  [][]interface{}{},
+		table:      table,
+		columns:    []string{},
+		values:     [][]interface{}{},
+		driverType: defaultDriverType,
 	}
+}
+
+// NewBulkInsertBuilderWithDriver creates a new bulk insert builder with specific driver
+func NewBulkInsertBuilderWithDriver(table string, driver DriverType) *BulkInsertBuilder {
+	bi := NewBulkInsertBuilder(table)
+	bi.driverType = driver
+	return bi
+}
+
+// SetDriver sets the driver type
+func (bi *BulkInsertBuilder) SetDriver(driver DriverType) *BulkInsertBuilder {
+	bi.driverType = driver
+	return bi
 }
 
 // Columns sets the columns
@@ -194,23 +209,71 @@ func (bi *BulkInsertBuilder) Build() (string, []interface{}) {
 
 	query.WriteString(strings.Join(valuePlaceholders, ", "))
 
-	return query.String(), args
+	// Convert placeholders based on driver type
+	finalQuery := bi.convertPlaceholders(query.String())
+
+	return finalQuery, args
+}
+
+// convertPlaceholders converts placeholders based on driver type
+func (bi *BulkInsertBuilder) convertPlaceholders(query string) string {
+	if bi.driverType == DriverMySQL {
+		return query
+	}
+
+	// PostgreSQL: convert ? to $1, $2, $3, ...
+	placeholderIndex := 1
+	result := strings.Builder{}
+
+	for i := 0; i < len(query); i++ {
+		if query[i] == '?' {
+			result.WriteString(fmt.Sprintf("$%d", placeholderIndex))
+			placeholderIndex++
+		} else {
+			result.WriteByte(query[i])
+		}
+	}
+
+	return result.String()
 }
 
 // UpsertBuilder helps build INSERT ... ON DUPLICATE KEY UPDATE queries (MySQL)
+// or INSERT ... ON CONFLICT ... DO UPDATE (PostgreSQL)
 type UpsertBuilder struct {
-	table      string
-	insertData map[string]interface{}
-	updateData map[string]interface{}
+	table          string
+	insertData     map[string]interface{}
+	updateData     map[string]interface{}
+	driverType     DriverType
+	conflictColumn string // For PostgreSQL ON CONFLICT
 }
 
-// NewUpsertBuilder creates a new upsert builder
+// NewUpsertBuilder creates a new upsert builder with default driver
 func NewUpsertBuilder(table string) *UpsertBuilder {
 	return &UpsertBuilder{
 		table:      table,
 		insertData: make(map[string]interface{}),
 		updateData: make(map[string]interface{}),
+		driverType: defaultDriverType,
 	}
+}
+
+// NewUpsertBuilderWithDriver creates a new upsert builder with specific driver
+func NewUpsertBuilderWithDriver(table string, driver DriverType) *UpsertBuilder {
+	ub := NewUpsertBuilder(table)
+	ub.driverType = driver
+	return ub
+}
+
+// SetDriver sets the driver type
+func (ub *UpsertBuilder) SetDriver(driver DriverType) *UpsertBuilder {
+	ub.driverType = driver
+	return ub
+}
+
+// OnConflict sets the conflict column for PostgreSQL (e.g., "id" or "(email)")
+func (ub *UpsertBuilder) OnConflict(column string) *UpsertBuilder {
+	ub.conflictColumn = column
+	return ub
 }
 
 // Insert sets the data to insert
@@ -225,8 +288,16 @@ func (ub *UpsertBuilder) Update(data map[string]interface{}) *UpsertBuilder {
 	return ub
 }
 
-// Build builds the upsert query (MySQL syntax)
+// Build builds the upsert query (MySQL or PostgreSQL syntax)
 func (ub *UpsertBuilder) Build() (string, []interface{}) {
+	if ub.driverType == DriverPostgreSQL {
+		return ub.buildPostgreSQL()
+	}
+	return ub.buildMySQL()
+}
+
+// buildMySQL builds MySQL upsert query (ON DUPLICATE KEY UPDATE)
+func (ub *UpsertBuilder) buildMySQL() (string, []interface{}) {
 	var query strings.Builder
 	args := []interface{}{}
 
@@ -253,6 +324,50 @@ func (ub *UpsertBuilder) Build() (string, []interface{}) {
 		for col, val := range ub.updateData {
 			updateClauses = append(updateClauses, fmt.Sprintf("%s = ?", col))
 			args = append(args, val)
+		}
+
+		query.WriteString(strings.Join(updateClauses, ", "))
+	}
+
+	return query.String(), args
+}
+
+// buildPostgreSQL builds PostgreSQL upsert query (ON CONFLICT ... DO UPDATE)
+func (ub *UpsertBuilder) buildPostgreSQL() (string, []interface{}) {
+	var query strings.Builder
+	args := []interface{}{}
+
+	// Build INSERT part
+	columns := []string{}
+	placeholders := []string{}
+	placeholderIndex := 1
+
+	for col, val := range ub.insertData {
+		columns = append(columns, col)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", placeholderIndex))
+		args = append(args, val)
+		placeholderIndex++
+	}
+
+	query.WriteString(fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		ub.table,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", ")))
+
+	// Build ON CONFLICT DO UPDATE part
+	if len(ub.updateData) > 0 {
+		conflictCol := ub.conflictColumn
+		if conflictCol == "" {
+			conflictCol = "id" // default conflict column
+		}
+
+		query.WriteString(fmt.Sprintf(" ON CONFLICT (%s) DO UPDATE SET ", conflictCol))
+
+		updateClauses := []string{}
+		for col, val := range ub.updateData {
+			updateClauses = append(updateClauses, fmt.Sprintf("%s = $%d", col, placeholderIndex))
+			args = append(args, val)
+			placeholderIndex++
 		}
 
 		query.WriteString(strings.Join(updateClauses, ", "))

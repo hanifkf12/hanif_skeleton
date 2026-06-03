@@ -6,6 +6,24 @@ import (
 	"strings"
 )
 
+// DriverType represents the database driver type
+type DriverType int
+
+const (
+	// MySQL driver (uses ? placeholders)
+	DriverMySQL DriverType = iota
+	// PostgreSQL driver (uses $1, $2, ... placeholders)
+	DriverPostgreSQL
+)
+
+// Default driver type (can be changed globally)
+var defaultDriverType = DriverMySQL
+
+// SetDefaultDriver sets the default driver type for all new query builders
+func SetDefaultDriver(driver DriverType) {
+	defaultDriverType = driver
+}
+
 // QueryBuilder is the main builder for SQL queries
 type QueryBuilder struct {
 	table      string
@@ -21,6 +39,7 @@ type QueryBuilder struct {
 	queryType  QueryType
 	updateData map[string]interface{}
 	insertData map[string]interface{}
+	driverType DriverType
 }
 
 type QueryType int
@@ -44,7 +63,7 @@ type joinClause struct {
 	condition string
 }
 
-// NewQueryBuilder creates a new query builder
+// NewQueryBuilder creates a new query builder with default driver
 func NewQueryBuilder() *QueryBuilder {
 	return &QueryBuilder{
 		columns:    []string{},
@@ -56,7 +75,45 @@ func NewQueryBuilder() *QueryBuilder {
 		args:       []interface{}{},
 		updateData: make(map[string]interface{}),
 		insertData: make(map[string]interface{}),
+		driverType: defaultDriverType,
 	}
+}
+
+// NewQueryBuilderWithDriver creates a new query builder with specific driver
+func NewQueryBuilderWithDriver(driver DriverType) *QueryBuilder {
+	qb := NewQueryBuilder()
+	qb.driverType = driver
+	return qb
+}
+
+// SetDriver sets the driver type for this query builder
+func (qb *QueryBuilder) SetDriver(driver DriverType) *QueryBuilder {
+	qb.driverType = driver
+	return qb
+}
+
+// convertPlaceholders converts MySQL-style placeholders (?) to the appropriate format
+// For PostgreSQL: ? -> $1, $2, $3, ...
+// For MySQL: ? remains as ?
+func (qb *QueryBuilder) convertPlaceholders(query string) string {
+	if qb.driverType == DriverMySQL {
+		return query
+	}
+
+	// PostgreSQL: convert ? to $1, $2, $3, ...
+	placeholderIndex := 1
+	result := strings.Builder{}
+
+	for i := 0; i < len(query); i++ {
+		if query[i] == '?' {
+			result.WriteString(fmt.Sprintf("$%d", placeholderIndex))
+			placeholderIndex++
+		} else {
+			result.WriteByte(query[i])
+		}
+	}
+
+	return result.String()
 }
 
 // Table sets the table name
@@ -226,18 +283,26 @@ func (qb *QueryBuilder) Delete() *QueryBuilder {
 
 // Build builds the SQL query and returns query string and args
 func (qb *QueryBuilder) Build() (string, []interface{}) {
+	var query string
+	var args []interface{}
+
 	switch qb.queryType {
 	case QueryTypeSelect:
-		return qb.buildSelect()
+		query, args = qb.buildSelect()
 	case QueryTypeInsert:
-		return qb.buildInsert()
+		query, args = qb.buildInsert()
 	case QueryTypeUpdate:
-		return qb.buildUpdate()
+		query, args = qb.buildUpdate()
 	case QueryTypeDelete:
-		return qb.buildDelete()
+		query, args = qb.buildDelete()
 	default:
-		return qb.buildSelect()
+		query, args = qb.buildSelect()
 	}
+
+	// Convert placeholders based on driver type
+	query = qb.convertPlaceholders(query)
+
+	return query, args
 }
 
 func (qb *QueryBuilder) buildSelect() (string, []interface{}) {

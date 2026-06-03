@@ -37,6 +37,14 @@ Summary lengkap tentang package:
 - Migration status
 - Key advantages
 
+### 5. [MULTI-DATABASE.md](MULTI-DATABASE.md) - **Multi-Database Support** 🆕
+Guide lengkap untuk MySQL & PostgreSQL support:
+- Driver configuration
+- MySQL vs PostgreSQL examples
+- Automatic placeholder conversion
+- Upsert differences
+- Repository integration
+
 ## 💻 Source Code
 
 ### Core Files

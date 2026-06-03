@@ -5,6 +5,36 @@
 import "github.com/hanifkf12/hanif_skeleton/pkg/sqlbuilder"
 ```
 
+## Multi-Database Support 🆕
+
+### Set Driver
+```go
+// Global default
+sqlbuilder.SetDefaultDriver(sqlbuilder.DriverMySQL)
+sqlbuilder.SetDefaultDriver(sqlbuilder.DriverPostgreSQL)
+
+// Per query builder
+qb := sqlbuilder.NewQueryBuilderWithDriver(sqlbuilder.DriverPostgreSQL)
+
+// Per model
+model := sqlbuilder.NewModelWithDriver(db, &User{}, sqlbuilder.DriverPostgreSQL)
+
+// Switch driver
+qb.SetDriver(sqlbuilder.DriverMySQL)
+model.SetDriver(sqlbuilder.DriverPostgreSQL)
+```
+
+### MySQL vs PostgreSQL
+```go
+// MySQL: uses ? placeholders
+qb := sqlbuilder.NewQueryBuilderWithDriver(sqlbuilder.DriverMySQL)
+// Output: WHERE id = ? AND name = ?
+
+// PostgreSQL: uses $1, $2, ... placeholders
+qb := sqlbuilder.NewQueryBuilderWithDriver(sqlbuilder.DriverPostgreSQL)
+// Output: WHERE id = $1 AND name = $2
+```
+
 ## Quick Reference
 
 ### SELECT

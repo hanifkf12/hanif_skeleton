@@ -15,13 +15,28 @@ type Model struct {
 	model   interface{}
 }
 
-// NewModel creates a new Model instance
+// NewModel creates a new Model instance with default driver
 func NewModel(db databasex.Database, model interface{}) *Model {
 	return &Model{
 		db:      db,
 		builder: NewQueryBuilder(),
 		model:   model,
 	}
+}
+
+// NewModelWithDriver creates a new Model instance with specific driver
+func NewModelWithDriver(db databasex.Database, model interface{}, driver DriverType) *Model {
+	return &Model{
+		db:      db,
+		builder: NewQueryBuilderWithDriver(driver),
+		model:   model,
+	}
+}
+
+// SetDriver sets the driver type for this model
+func (m *Model) SetDriver(driver DriverType) *Model {
+	m.builder.SetDriver(driver)
+	return m
 }
 
 // Table sets the table name
