@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var log *zap.Logger
+var log = zap.NewNop()
 var otlpSyncer *zapotlpsync.OtelSyncer
 
 type Fields struct {

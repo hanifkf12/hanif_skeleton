@@ -50,6 +50,7 @@ func Start() {
 	// Initialize database and repositories
 	db := bootstrap.RegistryDatabase(cfg, false)
 	userRepository := userRepo.NewUserRepository(db)
+	hasher := bootstrap.RegistryBcryptHasher(cfg)
 
 	// Create Pub/Sub router
 	router := pubsubRouter.NewRouter(cfg, client)
@@ -58,7 +59,7 @@ func Start() {
 	// Example: Register user-created-subscription
 	router.RegisterSubscription(pubsubRouter.SubscriptionConfig{
 		SubscriptionID: "user-created-subscription", // Change to your actual subscription ID
-		Consumer:       usecase.NewUserCreatedConsumer(userRepository),
+		Consumer:       usecase.NewUserCreatedConsumer(userRepository, hasher),
 		MaxConcurrent:  10,
 	})
 

@@ -1,21 +1,25 @@
 package usecase
 
 import (
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/crypto"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"strconv"
 )
 
 type updateUser struct {
-	userRepo repository.UserRepository
+	userRepo  repository.UserRepository
+	hasher    *crypto.BcryptHasher
+	validator *validator.Validate
 }
 
-func NewUpdateUser(userRepo repository.UserRepository) contract.UseCase {
-	return &updateUser{userRepo: userRepo}
+func NewUpdateUser(userRepo repository.UserRepository, hasher *crypto.BcryptHasher) contract.UseCase {
+	return &updateUser{userRepo: userRepo, hasher: hasher, validator: validator.New()}
 }
 
 func (u *updateUser) Serve(data appctx.Data) appctx.Response {
@@ -43,13 +47,24 @@ func (u *updateUser) Serve(data appctx.Data) appctx.Response {
 
 	// Set the ID from the path parameter
 	req.ID = id
+	if err := u.validator.Struct(req); err != nil {
+		return *appctx.NewResponse().WithCode(fiber.StatusBadRequest).WithErrors(err.Error())
+	}
+	if req.Password != "" {
+		passwordHash, err := u.hasher.HashPassword(req.Password)
+		if err != nil {
+			logger.Error("Failed to hash password", lf)
+			return *appctx.NewResponse().WithCode(fiber.StatusInternalServerError).WithErrors("Failed to update user")
+		}
+		req.Password = passwordHash
+	}
 
 	// Update user in database
 	err = u.userRepo.UpdateUser(data.FiberCtx.Context(), *req)
 	if err != nil {
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to update user", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusInternalServerError).WithErrors(err.Error())
+		return *appctx.NewResponse().WithCode(fiber.StatusInternalServerError).WithErrors("Failed to update user")
 	}
 
 	// Prepare response

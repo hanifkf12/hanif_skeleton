@@ -7,7 +7,6 @@ import (
 	"github.com/hanifkf12/hanif_skeleton/internal/handler"
 	"github.com/hanifkf12/hanif_skeleton/internal/middleware"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository/campaign"
-	"github.com/hanifkf12/hanif_skeleton/internal/repository/home"
 	userRepo "github.com/hanifkf12/hanif_skeleton/internal/repository/user"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
@@ -64,7 +63,6 @@ func (rtr *router) response(ctx *fiber.Ctx, resp appctx.Response) error {
 
 func (rtr *router) Route() {
 	db := bootstrap.RegistryDatabase(rtr.cfg, false)
-	homeRepo := home.NewHomeRepository(db)
 	userRepository := userRepo.NewUserRepository(db)
 	campaignRepository := campaign.NewCampaignRepository(db)
 
@@ -73,7 +71,7 @@ func (rtr *router) Route() {
 	hasher := bootstrap.RegistryBcryptHasher(rtr.cfg)
 
 	// Public routes - no middleware
-	healthUseCase := usecase.NewHealth(homeRepo)
+	healthUseCase := usecase.NewHealth()
 	rtr.fiber.Get("/health", rtr.handle(
 		handler.HttpRequest,
 		healthUseCase,
@@ -100,20 +98,20 @@ func (rtr *router) Route() {
 		middleware.JWTAuth(jwtInstance),
 	))
 
-	// Protected route with API Key (alternative auth method)
+	// Protected campaign routes
 	campaignUseCase := usecase.NewCampaign(campaignRepository)
 	rtr.fiber.Get("/campaigns", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		campaignUseCase,
-		middleware.APIKeyAuth("X-API-Key", []string{"api-key-123", "api-key-456"}),
+		middleware.JWTAuth(jwtInstance),
 	))
 
-	// GET /campaigns/:id - get a single campaign by ID (API Key protected)
+	// GET /campaigns/:id - get a single campaign by ID
 	getCampaignByIDUseCase := usecase.NewGetCampaignByID(campaignRepository)
 	rtr.fiber.Get("/campaigns/:id", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		getCampaignByIDUseCase,
-		middleware.APIKeyAuth("X-API-Key", []string{"api-key-123", "api-key-456"}),
+		middleware.JWTAuth(jwtInstance),
 	))
 
 	// Protected route with JWT + Content Type validation
@@ -142,7 +140,7 @@ func (rtr *router) Route() {
 	))
 
 	// User routes with JWT + Role-based access control
-	createUserUseCase := usecase.NewCreateUser(userRepository)
+	createUserUseCase := usecase.NewCreateUser(userRepository, hasher)
 	rtr.fiber.Post("/users", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		createUserUseCase,
@@ -159,7 +157,7 @@ func (rtr *router) Route() {
 		middleware.JWTAuth(jwtInstance),
 	))
 
-	updateUserUseCase := usecase.NewUpdateUser(userRepository)
+	updateUserUseCase := usecase.NewUpdateUser(userRepository, hasher)
 	rtr.fiber.Put("/users/:id", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		updateUserUseCase,

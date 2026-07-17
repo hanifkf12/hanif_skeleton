@@ -2,13 +2,7 @@ package appctx
 
 import (
 	"encoding/json"
-	"sync"
 	"time"
-)
-
-var (
-	rsp    *Response
-	oneRsp sync.Once
 )
 
 type Response struct {
@@ -57,13 +51,5 @@ func (r *Response) Byte() []byte {
 }
 
 func NewResponse() *Response {
-	oneRsp.Do(func() {
-		rsp = &Response{
-			Timestamp: time.Now(),
-		}
-	})
-
-	x := *rsp
-
-	return &x
+	return &Response{Timestamp: time.Now().UTC()}
 }

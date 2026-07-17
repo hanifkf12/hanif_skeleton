@@ -3,8 +3,9 @@ package user
 import (
 	"context"
 	"fmt"
-	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"strings"
+
+	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 )
 
 func (u *userRepository) UpdateUser(ctx context.Context, user entity.UpdateUserRequest) error {
@@ -13,17 +14,17 @@ func (u *userRepository) UpdateUser(ctx context.Context, user entity.UpdateUserR
 	args := []interface{}{}
 
 	if user.Username != "" {
-		setClauses = append(setClauses, "username = ?")
+		setClauses = append(setClauses, fmt.Sprintf("username = $%d", len(args)+1))
 		args = append(args, user.Username)
 	}
 
 	if user.Email != "" {
-		setClauses = append(setClauses, "email = ?")
+		setClauses = append(setClauses, fmt.Sprintf("email = $%d", len(args)+1))
 		args = append(args, user.Email)
 	}
 
 	if user.Password != "" {
-		setClauses = append(setClauses, "password = ?")
+		setClauses = append(setClauses, fmt.Sprintf("password_hash = $%d", len(args)+1))
 		args = append(args, user.Password)
 	}
 
@@ -33,7 +34,7 @@ func (u *userRepository) UpdateUser(ctx context.Context, user entity.UpdateUserR
 	}
 
 	// Build the final query
-	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(setClauses, ", "))
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(setClauses, ", "), len(args)+1)
 
 	// Add the ID to args
 	args = append(args, user.ID)

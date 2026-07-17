@@ -4,6 +4,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
@@ -16,7 +18,8 @@ import (
 //   - X-Signature: HMAC signature
 //   - X-Timestamp: Request timestamp
 //
-// Returns 200 if valid, 401 if invalid
+// Signatures older than five minutes (or too far in the future) are rejected
+// to reduce replay risk. Returns 200 if valid, 401 if invalid.
 func HMACAuth(secretKey string) Middleware {
 	return func(ctx *fiber.Ctx, cfg *config.Config) appctx.Response {
 		lf := logger.NewFields("Middleware.HMACAuth")
@@ -40,6 +43,14 @@ func HMACAuth(secretKey string) Middleware {
 				WithCode(fiber.StatusUnauthorized).
 				WithErrors("Missing timestamp")
 		}
+		unixTimestamp, err := strconv.ParseInt(timestamp, 10, 64)
+		if err != nil || absDuration(time.Since(time.Unix(unixTimestamp, 0))) > 5*time.Minute {
+			lf.Append(logger.Any("error", "invalid or stale timestamp"))
+			logger.Error("HMAC validation failed", lf)
+			return *appctx.NewResponse().
+				WithCode(fiber.StatusUnauthorized).
+				WithErrors("Invalid timestamp")
+		}
 
 		// Get request body
 		body := ctx.Body()
@@ -50,13 +61,12 @@ func HMACAuth(secretKey string) Middleware {
 		// Calculate HMAC
 		h := hmac.New(sha256.New, []byte(secretKey))
 		h.Write([]byte(message))
-		expectedSignature := hex.EncodeToString(h.Sum(nil))
+		expectedSignature := h.Sum(nil)
+		providedSignature, err := hex.DecodeString(signature)
 
 		// Compare signatures
-		if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
+		if err != nil || !hmac.Equal(providedSignature, expectedSignature) {
 			lf.Append(logger.Any("error", "invalid signature"))
-			lf.Append(logger.Any("expected", expectedSignature))
-			lf.Append(logger.Any("received", signature))
 			logger.Error("HMAC validation failed", lf)
 			return *appctx.NewResponse().
 				WithCode(fiber.StatusUnauthorized).
@@ -69,4 +79,11 @@ func HMACAuth(secretKey string) Middleware {
 
 		return *appctx.NewResponse().WithCode(fiber.StatusOK)
 	}
+}
+
+func absDuration(duration time.Duration) time.Duration {
+	if duration < 0 {
+		return -duration
+	}
+	return duration
 }

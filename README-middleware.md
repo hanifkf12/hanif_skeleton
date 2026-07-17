@@ -94,7 +94,8 @@ curl http://localhost:9000/users
 
 ### 2. **HMAC Auth** - `middleware.HMACAuth()`
 
-Validates HMAC signature for request integrity.
+Validates HMAC signatures for request integrity. Timestamps must be Unix seconds
+within five minutes of the server clock to reduce replay risk.
 
 **Usage:**
 ```go
@@ -115,7 +116,7 @@ signature = HMAC-SHA256(secret, message)
 
 **Returns:**
 - `200` - Signature valid
-- `401` - Missing/invalid signature
+- `401` - Missing/invalid signature or stale timestamp
 
 **Example:**
 ```go
@@ -132,6 +133,8 @@ import (
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
+    "strconv"
+    "time"
 )
 
 func generateHMAC(method, path, timestamp, body, secret string) string {
@@ -142,7 +145,7 @@ func generateHMAC(method, path, timestamp, body, secret string) string {
 }
 
 // Usage
-timestamp := "1699200000"
+timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 signature := generateHMAC("POST", "/campaigns", timestamp, `{"name":"test"}`, "secret-key-123")
 ```
 
@@ -150,7 +153,7 @@ signature := generateHMAC("POST", "/campaigns", timestamp, `{"name":"test"}`, "s
 ```bash
 curl -X POST http://localhost:9000/campaigns \
   -H "Content-Type: application/json" \
-  -H "X-Timestamp: 1699200000" \
+  -H "X-Timestamp: <current-unix-timestamp>" \
   -H "X-Signature: <calculated-signature>" \
   -d '{"name":"test"}'
 ```
@@ -696,26 +699,8 @@ func DatabaseTokenAuth(db Database) Middleware {
 
 ### 3. HMAC Time Window
 
-Add timestamp validation to prevent replay attacks:
-
-```go
-func HMACAuthWithTimeWindow(secret string, windowSeconds int64) Middleware {
-    return func(ctx *fiber.Ctx, cfg *config.Config) appctx.Response {
-        timestamp := ctx.Get("X-Timestamp")
-        reqTime, _ := strconv.ParseInt(timestamp, 10, 64)
-        now := time.Now().Unix()
-        
-        // Check if request is within time window
-        if abs(now - reqTime) > windowSeconds {
-            return *appctx.NewResponse().
-                WithCode(fiber.StatusUnauthorized).
-                WithErrors("Request expired")
-        }
-        
-        // ... rest of HMAC validation
-    }
-}
-```
+`HMACAuth` includes a five-minute timestamp window. Keep application hosts time-synchronized;
+requests outside that window are rejected even when their signature is otherwise valid.
 
 ---
 
@@ -739,4 +724,3 @@ Custom middleware system provides:
 - Updated `internal/router/router.go` - Middleware support
 
 **No Fiber default middleware used - 100% custom implementation!** 🎉
-

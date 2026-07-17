@@ -3,8 +3,14 @@ BINARY_NAME=hanif_skeleton
 run-http:
 	@go run main.go http
 
-run-worek:
+run-worker:
 	@go run main.go worker
 
 run-pubsub:
 	@go run main.go pubsub
+
+test:
+	@go test ./...
+
+vet:
+	@go vet ./...

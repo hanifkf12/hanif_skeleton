@@ -76,6 +76,10 @@ func NewJWT(config Config) (JWT, error) {
 
 // Generate generates a new JWT token
 func (j *jwtImpl) Generate(claims Claims) (string, error) {
+	if claims.UserID <= 0 || claims.Username == "" {
+		return "", ErrMissingClaims
+	}
+
 	now := time.Now()
 
 	// Set registered claims
@@ -100,12 +104,11 @@ func (j *jwtImpl) Generate(claims Claims) (string, error) {
 func (j *jwtImpl) Parse(tokenString string) (*Claims, error) {
 	// Parse token
 	token, err := jwtlib.ParseWithClaims(tokenString, &Claims{}, func(token *jwtlib.Token) (interface{}, error) {
-		// Validate signing method
-		if _, ok := token.Method.(*jwtlib.SigningMethodHMAC); !ok {
+		if token.Method.Alg() != jwtlib.SigningMethodHS256.Alg() {
 			return nil, ErrInvalidSignMethod
 		}
 		return j.secretKey, nil
-	})
+	}, jwtlib.WithValidMethods([]string{jwtlib.SigningMethodHS256.Alg()}), jwtlib.WithIssuer(j.issuer))
 
 	if err != nil {
 		if errors.Is(err, jwtlib.ErrTokenExpired) {
@@ -119,33 +122,21 @@ func (j *jwtImpl) Parse(tokenString string) (*Claims, error) {
 	if !ok || !token.Valid {
 		return nil, ErrInvalidToken
 	}
+	if claims.UserID <= 0 || claims.Username == "" {
+		return nil, ErrMissingClaims
+	}
 
 	return claims, nil
 }
 
 // Refresh refreshes an existing token with new expiry
 func (j *jwtImpl) Refresh(tokenString string) (string, error) {
-	// Parse existing token
 	claims, err := j.Parse(tokenString)
-	if err != nil {
-		// If token is expired, we can still refresh it
-		if !errors.Is(err, ErrTokenExpired) {
-			return "", err
-		}
-		// Parse without validation for refresh
-		token, _ := jwtlib.ParseWithClaims(tokenString, &Claims{}, func(token *jwtlib.Token) (interface{}, error) {
-			return j.secretKey, nil
-		})
-		claims, _ = token.Claims.(*Claims)
-	}
-
-	// Generate new token with same claims
-	newToken, err := j.Generate(*claims)
 	if err != nil {
 		return "", err
 	}
 
-	return newToken, nil
+	return j.Generate(*claims)
 }
 
 // Validate validates a token without parsing claims

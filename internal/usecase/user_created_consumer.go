@@ -2,23 +2,30 @@ package usecase
 
 import (
 	"encoding/json"
+	"strings"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/crypto"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
 
 // Example Pub/Sub consumer for creating users from Pub/Sub messages
 type userCreatedConsumer struct {
-	userRepo repository.UserRepository
+	userRepo  repository.UserRepository
+	hasher    *crypto.BcryptHasher
+	validator *validator.Validate
 }
 
-func NewUserCreatedConsumer(userRepo repository.UserRepository) contract.PubSubConsumer {
+func NewUserCreatedConsumer(userRepo repository.UserRepository, hasher *crypto.BcryptHasher) contract.PubSubConsumer {
 	return &userCreatedConsumer{
-		userRepo: userRepo,
+		userRepo:  userRepo,
+		hasher:    hasher,
+		validator: validator.New(),
 	}
 }
 
@@ -39,6 +46,21 @@ func (c *userCreatedConsumer) Consume(data appctx.PubSubData) appctx.PubSubRespo
 		logger.Error("Failed to parse message data", lf)
 		return *appctx.NewPubSubResponse().WithError(err)
 	}
+	req.Username = strings.TrimSpace(req.Username)
+	req.Email = strings.TrimSpace(req.Email)
+	if err := c.validator.Struct(req); err != nil {
+		telemetry.SpanError(ctx, err)
+		logger.Error("Invalid user created message", lf)
+		return *appctx.NewPubSubResponse().WithError(err)
+	}
+
+	passwordHash, err := c.hasher.HashPassword(req.Password)
+	if err != nil {
+		telemetry.SpanError(ctx, err)
+		logger.Error("Failed to hash user password", lf)
+		return *appctx.NewPubSubResponse().WithError(err)
+	}
+	req.Password = passwordHash
 
 	lf.Append(logger.Any("username", req.Username))
 	lf.Append(logger.Any("email", req.Email))

@@ -1,6 +1,11 @@
 package usecase
 
 import (
+	"database/sql"
+	"errors"
+	"strings"
+
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
@@ -13,9 +18,10 @@ import (
 
 // Login usecase for user authentication
 type login struct {
-	userRepo repository.UserRepository
-	hasher   *crypto.BcryptHasher
-	jwt      jwt.JWT
+	userRepo  repository.UserRepository
+	hasher    *crypto.BcryptHasher
+	jwt       jwt.JWT
+	validator *validator.Validate
 }
 
 // LoginRequest represents login request
@@ -36,9 +42,10 @@ type LoginResponse struct {
 
 func NewLogin(userRepo repository.UserRepository, hasher *crypto.BcryptHasher, jwtInstance jwt.JWT) contract.UseCase {
 	return &login{
-		userRepo: userRepo,
-		hasher:   hasher,
-		jwt:      jwtInstance,
+		userRepo:  userRepo,
+		hasher:    hasher,
+		jwt:       jwtInstance,
+		validator: validator.New(),
 	}
 }
 
@@ -59,40 +66,40 @@ func (u *login) Serve(data appctx.Data) appctx.Response {
 			WithCode(fiber.StatusBadRequest).
 			WithErrors("Invalid request body")
 	}
+	req.Username = strings.TrimSpace(req.Username)
+	if err := u.validator.Struct(req); err != nil {
+		telemetry.SpanError(ctx, err)
+		return *appctx.NewResponse().
+			WithCode(fiber.StatusBadRequest).
+			WithErrors("Username and password are required")
+	}
 
 	lf.Append(logger.Any("username", req.Username))
 
-	// TODO: Implement user lookup by username from database
-	// For now, this is a placeholder - you need to implement GetUserByUsername in repository
-	// user, err := u.userRepo.GetUserByUsername(ctx, req.Username)
-	// if err != nil {
-	//     logger.Error("User not found", lf)
-	//     return *appctx.NewResponse().
-	//         WithCode(fiber.StatusUnauthorized).
-	//         WithErrors("Invalid credentials")
-	// }
+	user, err := u.userRepo.GetUserByUsername(ctx, req.Username)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			telemetry.SpanError(ctx, err)
+			logger.Error("Failed to look up user", lf)
+		}
+		return *appctx.NewResponse().
+			WithCode(fiber.StatusUnauthorized).
+			WithErrors("Invalid credentials")
+	}
 
-	// TODO: Verify password
-	// if !u.hasher.ComparePassword(req.Password, user.HashedPassword) {
-	//     logger.Error("Invalid password", lf)
-	//     return *appctx.NewResponse().
-	//         WithCode(fiber.StatusUnauthorized).
-	//         WithErrors("Invalid credentials")
-	// }
-
-	// For demo purposes, using hardcoded user data
-	// Replace this with actual database lookup
-	userID := int64(1)
-	username := req.Username
-	email := "user@example.com"
-	role := "user"
+	if user.PasswordHash == "" || !u.hasher.ComparePassword(req.Password, user.PasswordHash) {
+		logger.Error("Login rejected", lf)
+		return *appctx.NewResponse().
+			WithCode(fiber.StatusUnauthorized).
+			WithErrors("Invalid credentials")
+	}
 
 	// Generate JWT token
 	claims := jwt.Claims{
-		UserID:   userID,
-		Username: username,
-		Email:    email,
-		Role:     role,
+		UserID:   user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+		Role:     user.Role,
 	}
 
 	token, err := u.jwt.Generate(claims)
@@ -107,10 +114,10 @@ func (u *login) Serve(data appctx.Data) appctx.Response {
 
 	response := LoginResponse{
 		Token:     token,
-		UserID:    userID,
-		Username:  username,
-		Email:     email,
-		Role:      role,
+		UserID:    user.ID,
+		Username:  user.Username,
+		Email:     user.Email,
+		Role:      user.Role,
 		ExpiresIn: "24h",
 	}
 

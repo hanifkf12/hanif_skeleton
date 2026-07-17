@@ -47,7 +47,7 @@ func (u *getUserByID) Serve(data appctx.Data) appctx.Response {
 	}
 
 	resp := entity.GetUserByIDResponse{
-		ID:        user.Id,
+		ID:        user.ID,
 		Name:      user.Name,
 		Email:     user.Email,
 		Username:  user.Username,

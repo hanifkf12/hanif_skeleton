@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hanifkf12/hanif_skeleton/pkg/config"
 	"github.com/jmoiron/sqlx"
@@ -110,7 +111,7 @@ func NewPostgres(cfg *config.Config) (Database, error) {
 	// Set connection pool limits
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(300) // 5 minutes
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	return &Postgres{
 		db: db,

@@ -6,20 +6,13 @@ import (
 )
 
 func (u *userRepository) CreateUser(ctx context.Context, user entity.CreateUserRequest) (int64, error) {
-	// Define insert query
-	query := "INSERT INTO users (username, email, password) VALUES ($1, $2, $3)"
+	const query = `
+		INSERT INTO users (name, username, email, password_hash, role)
+		VALUES ($1, $2, $3, $4, 'user')
+		RETURNING id
+	`
 
-	// Execute query and get result
-	result, err := u.db.Exec(ctx, query, user.Username, user.Email, user.Password)
-	if err != nil {
-		return 0, err
-	}
-
-	// Get last inserted ID
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-
-	return id, nil
+	var id int64
+	err := u.db.QueryRowX(ctx, query, user.Username, user.Username, user.Email, user.Password).Scan(&id)
+	return id, err
 }
