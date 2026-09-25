@@ -67,12 +67,12 @@ func RateLimit(cfg RateLimitConfig) Middleware {
 			lf.Append(logger.Any("max", cfg.MaxRequests))
 			logger.Error("Rate limit exceeded", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusTooManyRequests).
+				WithCode(appctx.StatusTooManyRequests).
 				WithErrors("Rate limit exceeded")
 		}
 
 		logger.Info("Rate limit check passed", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }
 
@@ -98,12 +98,12 @@ func ContentTypeValidator(allowedTypes []string) Middleware {
 			lf.Append(logger.Any("error", "unsupported content type"))
 			logger.Error("Content type validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnsupportedMediaType).
+				WithCode(appctx.StatusUnsupportedMediaType).
 				WithErrors("Unsupported content type")
 		}
 
 		logger.Info("Content type validation successful", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }
 
@@ -129,11 +129,11 @@ func IPWhitelist(allowedIPs []string) Middleware {
 			lf.Append(logger.Any("error", "IP not in whitelist"))
 			logger.Error("IP whitelist check failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusForbidden).
+				WithCode(appctx.StatusForbidden).
 				WithErrors("Access denied")
 		}
 
 		logger.Info("IP whitelist check passed", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }

@@ -30,7 +30,7 @@ func HMACAuth(secretKey string) Middleware {
 			lf.Append(logger.Any("error", "missing X-Signature header"))
 			logger.Error("HMAC validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Missing signature")
 		}
 
@@ -40,7 +40,7 @@ func HMACAuth(secretKey string) Middleware {
 			lf.Append(logger.Any("error", "missing X-Timestamp header"))
 			logger.Error("HMAC validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Missing timestamp")
 		}
 		unixTimestamp, err := strconv.ParseInt(timestamp, 10, 64)
@@ -48,7 +48,7 @@ func HMACAuth(secretKey string) Middleware {
 			lf.Append(logger.Any("error", "invalid or stale timestamp"))
 			logger.Error("HMAC validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Invalid timestamp")
 		}
 
@@ -69,7 +69,7 @@ func HMACAuth(secretKey string) Middleware {
 			lf.Append(logger.Any("error", "invalid signature"))
 			logger.Error("HMAC validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Invalid signature")
 		}
 
@@ -77,7 +77,7 @@ func HMACAuth(secretKey string) Middleware {
 		lf.Append(logger.Any("path", ctx.Path()))
 		logger.Info("HMAC validation successful", lf)
 
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }
 

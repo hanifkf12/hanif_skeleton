@@ -2,11 +2,11 @@ package usecase
 
 import (
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
@@ -17,24 +17,25 @@ type createCampaign struct {
 }
 
 func (c *createCampaign) Serve(data appctx.Data) appctx.Response {
-	ctx := data.FiberCtx.UserContext()
+	ctx := data.Request.Context()
 	ctx, span := telemetry.StartSpan(ctx, "createCampaign.Serve")
 	defer span.End()
 
 	lf := logger.NewFields("CreateCampaign").WithTrace(ctx)
 
 	req := new(entity.CreateCampaignRequest)
-	if err := data.FiberCtx.BodyParser(req); err != nil {
+	if err := data.Request.Body(req); err != nil {
+		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to parse create campaign request", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusBadRequest).WithErrors(err.Error())
+		return *appctx.ResponseFromError(apperror.Invalid("Invalid request body"))
 	}
 
 	if err := c.validator.Struct(req); err != nil {
+		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
-		lf.Append(logger.Any("request", req))
 		logger.Error("Invalid create campaign request", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusBadRequest).WithErrors(err.Error())
+		return *appctx.ResponseFromError(apperror.Wrap(err, apperror.KindInvalid, "Invalid request body"))
 	}
 
 	campaign := &entity.Campaign{
@@ -46,13 +47,14 @@ func (c *createCampaign) Serve(data appctx.Data) appctx.Response {
 	lf.Append(logger.Any("campaign", campaign))
 
 	if err := c.campaignRepo.Create(ctx, campaign); err != nil {
+		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to create campaign", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusInternalServerError).WithErrors(err.Error())
+		return *appctx.ResponseFromError(err)
 	}
 
 	logger.Info("Campaign created successfully", lf)
-	return *appctx.NewResponse().WithCode(fiber.StatusCreated).WithData(campaign)
+	return *appctx.NewResponse().WithCode(appctx.StatusCreated).WithData(campaign)
 }
 
 func NewCreateCampaign(campaignRepo repository.CampaignRepository) contract.UseCase {

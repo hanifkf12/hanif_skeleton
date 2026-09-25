@@ -1,11 +1,9 @@
 package appctx
 
-import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/hanifkf12/hanif_skeleton/pkg/config"
-)
-
+// Data membawa request HTTP yang masuk ke usecase.
+//
+// Request adalah satu-satunya cara usecase mengakses request, sehingga
+// business layer tidak terikat pada framework HTTP mana pun.
 type Data struct {
-	FiberCtx *fiber.Ctx
-	Cfg      *config.Config
+	Request Request
 }

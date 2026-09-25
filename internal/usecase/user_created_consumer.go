@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
@@ -13,6 +12,16 @@ import (
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
+
+// userCreatedPayload adalah bentuk wire pesan Pub/Sub. Ia sengaja terpisah dari
+// entity.UserInput: payload membawa password plaintext, sedangkan UserInput
+// hanya bisa merepresentasikan hash. Kedua entry point (HTTP & Pub/Sub)
+// bertemu di UserInput, sehingga invariant-nya sama persis.
+type userCreatedPayload struct {
+	Username string `json:"username" validate:"required"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=6,max=72"`
+}
 
 // Example Pub/Sub consumer for creating users from Pub/Sub messages
 type userCreatedConsumer struct {
@@ -39,34 +48,38 @@ func (c *userCreatedConsumer) Consume(data appctx.PubSubData) appctx.PubSubRespo
 	logger.Info("Processing user created message", lf)
 
 	// Parse message data
-	var req entity.CreateUserRequest
-	if err := json.Unmarshal(data.Message.Data, &req); err != nil {
+	var payload userCreatedPayload
+	if err := json.Unmarshal(data.Message.Data, &payload); err != nil {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to parse message data", lf)
 		return *appctx.NewPubSubResponse().WithError(err)
 	}
-	req.Username = strings.TrimSpace(req.Username)
-	req.Email = strings.TrimSpace(req.Email)
-	if err := c.validator.Struct(req); err != nil {
+	if err := c.validator.Struct(payload); err != nil {
 		telemetry.SpanError(ctx, err)
 		logger.Error("Invalid user created message", lf)
 		return *appctx.NewPubSubResponse().WithError(err)
 	}
 
-	passwordHash, err := c.hasher.HashPassword(req.Password)
+	passwordHash, err := c.hasher.HashPassword(payload.Password)
 	if err != nil {
 		telemetry.SpanError(ctx, err)
 		logger.Error("Failed to hash user password", lf)
 		return *appctx.NewPubSubResponse().WithError(err)
 	}
-	req.Password = passwordHash
 
-	lf.Append(logger.Any("username", req.Username))
-	lf.Append(logger.Any("email", req.Email))
+	input, err := entity.NewUserInput(payload.Username, payload.Email, passwordHash)
+	if err != nil {
+		telemetry.SpanError(ctx, err)
+		logger.Error("Invalid user data in message", lf)
+		return *appctx.NewPubSubResponse().WithError(err)
+	}
+
+	lf.Append(logger.Any("username", input.Username))
+	lf.Append(logger.Any("email", input.Email))
 
 	// Create user in database
-	userID, err := c.userRepo.CreateUser(ctx, req)
+	userID, err := c.userRepo.CreateUser(ctx, input)
 	if err != nil {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))

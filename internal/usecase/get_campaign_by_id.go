@@ -1,11 +1,11 @@
 package usecase
 
 import (
-	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
@@ -19,17 +19,17 @@ func NewGetCampaignByID(campaignRepo repository.CampaignRepository) contract.Use
 }
 
 func (c *getCampaignByID) Serve(data appctx.Data) appctx.Response {
-	ctx := data.FiberCtx.UserContext()
+	ctx := data.Request.Context()
 	ctx, span := telemetry.StartSpan(ctx, "getCampaignByID.Serve")
 	defer span.End()
 
 	lf := logger.NewFields("GetCampaignByID").WithTrace(ctx)
 
 	// Parse :id from URL param
-	id := data.FiberCtx.Params("id")
+	id := data.Request.Param("id")
 	if id == "" {
 		logger.Error("Campaign ID is empty", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusBadRequest).WithErrors("campaign id is required")
+		return *appctx.ResponseFromError(apperror.Invalid("Campaign ID is required"))
 	}
 
 	lf.Append(logger.Any("campaign_id", id))
@@ -39,7 +39,7 @@ func (c *getCampaignByID) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to get campaign", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusNotFound).WithErrors("campaign not found")
+		return *appctx.ResponseFromError(apperror.NotFound("Campaign not found"))
 	}
 
 	resp := entity.GetCampaignByIDResponse{
@@ -52,5 +52,5 @@ func (c *getCampaignByID) Serve(data appctx.Data) appctx.Response {
 	}
 
 	logger.Info("Successfully retrieved campaign", lf)
-	return *appctx.NewResponse().WithCode(fiber.StatusOK).WithData(resp)
+	return *appctx.NewResponse().WithCode(appctx.StatusOK).WithData(resp)
 }

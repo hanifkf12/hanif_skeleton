@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
+	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/pkg/sqlbuilder"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
@@ -22,7 +23,7 @@ func (u *userRepository) GetUserByID(ctx context.Context, id int64) (*entity.Use
 		First(ctx, &user)
 
 	if err != nil {
-		return nil, err
+		return nil, repository.MapSQLError(err, "User not found")
 	}
 
 	return &user, nil

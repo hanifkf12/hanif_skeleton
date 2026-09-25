@@ -22,7 +22,7 @@ func JWTAuth(jwtInstance jwt.JWT) Middleware {
 			lf.Append(logger.Any("error", "missing Authorization header"))
 			logger.Error("JWT auth validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Missing authorization header")
 		}
 
@@ -31,7 +31,7 @@ func JWTAuth(jwtInstance jwt.JWT) Middleware {
 			lf.Append(logger.Any("error", "invalid Authorization format"))
 			logger.Error("JWT auth validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Invalid authorization format")
 		}
 
@@ -41,7 +41,7 @@ func JWTAuth(jwtInstance jwt.JWT) Middleware {
 			lf.Append(logger.Any("error", "empty token"))
 			logger.Error("JWT auth validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Empty token")
 		}
 
@@ -58,7 +58,7 @@ func JWTAuth(jwtInstance jwt.JWT) Middleware {
 			}
 
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors(errorMsg)
 		}
 
@@ -75,7 +75,7 @@ func JWTAuth(jwtInstance jwt.JWT) Middleware {
 		lf.Append(logger.Any("path", ctx.Path()))
 		logger.Info("JWT auth validation successful", lf)
 
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }
 
@@ -91,7 +91,7 @@ func RequireRole(allowedRoles []string) Middleware {
 			lf.Append(logger.Any("error", "role not found in context"))
 			logger.Error("Role validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusForbidden).
+				WithCode(appctx.StatusForbidden).
 				WithErrors("Role not found")
 		}
 
@@ -109,14 +109,14 @@ func RequireRole(allowedRoles []string) Middleware {
 			lf.Append(logger.Any("allowed_roles", allowedRoles))
 			logger.Error("Role validation failed - insufficient permissions", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusForbidden).
+				WithCode(appctx.StatusForbidden).
 				WithErrors("Insufficient permissions")
 		}
 
 		lf.Append(logger.Any("role", role))
 		logger.Info("Role validation successful", lf)
 
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }
 
@@ -133,7 +133,7 @@ func BearerAuth(validTokens []string) Middleware {
 			lf.Append(logger.Any("error", "missing Authorization header"))
 			logger.Error("Auth validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Missing authorization header")
 		}
 
@@ -142,7 +142,7 @@ func BearerAuth(validTokens []string) Middleware {
 			lf.Append(logger.Any("error", "invalid Authorization format"))
 			logger.Error("Auth validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Invalid authorization format")
 		}
 
@@ -152,7 +152,7 @@ func BearerAuth(validTokens []string) Middleware {
 			lf.Append(logger.Any("error", "empty token"))
 			logger.Error("Auth validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Empty token")
 		}
 
@@ -169,7 +169,7 @@ func BearerAuth(validTokens []string) Middleware {
 			lf.Append(logger.Any("error", "invalid token"))
 			logger.Error("Auth validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Invalid token")
 		}
 
@@ -179,7 +179,7 @@ func BearerAuth(validTokens []string) Middleware {
 		// Store token in context for later use
 		ctx.Locals("token", token)
 
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }
 
@@ -196,7 +196,7 @@ func APIKeyAuth(headerName string, validKeys []string) Middleware {
 			lf.Append(logger.Any("header", headerName))
 			logger.Error("API key validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Missing API key")
 		}
 
@@ -213,7 +213,7 @@ func APIKeyAuth(headerName string, validKeys []string) Middleware {
 			lf.Append(logger.Any("error", "invalid API key"))
 			logger.Error("API key validation failed", lf)
 			return *appctx.NewResponse().
-				WithCode(fiber.StatusUnauthorized).
+				WithCode(appctx.StatusUnauthorized).
 				WithErrors("Invalid API key")
 		}
 
@@ -223,6 +223,6 @@ func APIKeyAuth(headerName string, validKeys []string) Middleware {
 		// Store API key in context for later use
 		ctx.Locals("api_key", apiKey)
 
-		return *appctx.NewResponse().WithCode(fiber.StatusOK)
+		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }

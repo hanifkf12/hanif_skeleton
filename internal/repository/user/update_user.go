@@ -6,40 +6,51 @@ import (
 	"strings"
 
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
+	"github.com/hanifkf12/hanif_skeleton/internal/repository"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 )
 
-func (u *userRepository) UpdateUser(ctx context.Context, user entity.UpdateUserRequest) error {
-	// Build the dynamic update query based on which fields are provided
+func (u *userRepository) UpdateUser(ctx context.Context, id int64, update entity.UserUpdate) error {
+	if update.IsEmpty() {
+		return apperror.Invalid("No fields to update")
+	}
+
+	// Bangun klausa SET dinamis dari field yang benar-benar di-set. Field
+	// bernilai nil berarti "jangan diubah".
 	setClauses := []string{}
 	args := []interface{}{}
 
-	if user.Username != "" {
+	if update.Username != nil {
 		setClauses = append(setClauses, fmt.Sprintf("username = $%d", len(args)+1))
-		args = append(args, user.Username)
+		args = append(args, *update.Username)
 	}
 
-	if user.Email != "" {
+	if update.Email != nil {
 		setClauses = append(setClauses, fmt.Sprintf("email = $%d", len(args)+1))
-		args = append(args, user.Email)
+		args = append(args, *update.Email)
 	}
 
-	if user.Password != "" {
+	if update.PasswordHash != nil {
 		setClauses = append(setClauses, fmt.Sprintf("password_hash = $%d", len(args)+1))
-		args = append(args, user.Password)
+		args = append(args, *update.PasswordHash)
 	}
 
-	// If no fields to update
-	if len(setClauses) == 0 {
-		return fmt.Errorf("no fields to update")
-	}
-
-	// Build the final query
 	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(setClauses, ", "), len(args)+1)
+	args = append(args, id)
 
-	// Add the ID to args
-	args = append(args, user.ID)
+	result, err := u.db.Exec(ctx, query, args...)
+	if err != nil {
+		return repository.MapSQLError(err, "User not found")
+	}
 
-	// Execute the query
-	_, err := u.db.Exec(ctx, query, args...)
-	return err
+	// Tanpa pemeriksaan ini, mengubah id yang tidak ada akan tetap dijawab 200.
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return apperror.Internal(err)
+	}
+	if affected == 0 {
+		return apperror.NotFound("User not found")
+	}
+
+	return nil
 }

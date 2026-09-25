@@ -15,7 +15,6 @@ func PubSubHandler(ctx context.Context, msg *pubsub.Message, consumer contract.P
 	data := appctx.PubSubData{
 		Ctx:     ctx,
 		Message: msg,
-		Cfg:     conf,
 	}
 
 	return consumer.Consume(data)

@@ -19,13 +19,17 @@ func (u *userRepository) GetUserByUsername(ctx context.Context, username string)
 	defer span.End()
 
 	var user entity.User
+	// Satu-satunya query user yang mengambil `role` dan `password_hash`.
+	// GetUserByID dan GetUsers sengaja tidak mengambil keduanya, sehingga User
+	// hasil query itu selalu punya Role kosong — jangan bangun entity.Actor dari
+	// User hasil query tersebut, pemeriksaan role-nya akan gagal-terbuka.
 	err := u.db.Get(ctx, &user, `
 		SELECT id, name, email, username, password_hash, role, created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`, username)
 	if err != nil {
-		return nil, err
+		return nil, repository.MapSQLError(err, "User not found")
 	}
 
 	return &user, nil
@@ -45,7 +49,7 @@ func (u *userRepository) GetUsers(ctx context.Context) ([]entity.User, error) {
 		GetAll(ctx, &users)
 
 	if err != nil {
-		return nil, err
+		return nil, repository.MapSQLError(err, "Users not found")
 	}
 
 	return users, nil

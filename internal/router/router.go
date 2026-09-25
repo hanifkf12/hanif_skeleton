@@ -33,7 +33,7 @@ func (rtr *router) handleWithMiddleware(hfn httpHandlerFunc, svc contract.UseCas
 			resp := mw(ctx, rtr.cfg)
 
 			// If middleware returns non-200, stop execution and return error response
-			if resp.Code != fiber.StatusOK {
+			if resp.Code != appctx.StatusOK {
 				lf := logger.NewFields("Router.Middleware")
 				lf.Append(logger.Any("code", resp.Code))
 				lf.Append(logger.Any("path", ctx.Path()))
@@ -55,7 +55,7 @@ func (rtr *router) response(ctx *fiber.Ctx, resp appctx.Response) error {
 	// Use the response code from appctx.Response
 	statusCode := resp.Code
 	if statusCode == 0 {
-		statusCode = 200
+		statusCode = appctx.StatusOK
 	}
 
 	return ctx.Status(statusCode).Send(resp.Byte())

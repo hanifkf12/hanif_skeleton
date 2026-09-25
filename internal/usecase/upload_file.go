@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"github.com/hanifkf12/hanif_skeleton/pkg/storage"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
@@ -26,21 +26,19 @@ func NewUploadFile(storage storage.Storage) contract.UseCase {
 }
 
 func (u *uploadFile) Serve(data appctx.Data) appctx.Response {
-	ctx := data.FiberCtx.UserContext()
+	ctx := data.Request.Context()
 	ctx, span := telemetry.StartSpan(ctx, "uploadFile.Serve")
 	defer span.End()
 
 	lf := logger.NewFields("UploadFile").WithTrace(ctx)
 
 	// Get file from multipart form
-	file, err := data.FiberCtx.FormFile("file")
+	file, err := data.Request.FormFile("file")
 	if err != nil {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to get file from form", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusBadRequest).
-			WithErrors("File is required")
+		return *appctx.ResponseFromError(apperror.Invalid("File is required"))
 	}
 
 	lf.Append(logger.Any("filename", file.Filename))
@@ -52,13 +50,13 @@ func (u *uploadFile) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to open uploaded file", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusInternalServerError).
-			WithErrors("Failed to process file")
+		return *appctx.ResponseFromError(apperror.Internal(err))
 	}
 	defer src.Close()
 
-	// Generate unique filename
+	// Generate unique filename. Hanya ekstensi yang diambil dari nama yang
+	// dikirim klien; nama file ditentukan server, sehingga nilai apa pun di
+	// file.Filename tidak bisa mempengaruhi path tujuan.
 	ext := filepath.Ext(file.Filename)
 	filename := fmt.Sprintf("%s%s", uuid.New().String(), ext)
 	storagePath := fmt.Sprintf("uploads/%s", filename)
@@ -69,9 +67,7 @@ func (u *uploadFile) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to read file", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusInternalServerError).
-			WithErrors("Failed to read file")
+		return *appctx.ResponseFromError(apperror.Internal(err))
 	}
 
 	// Upload to storage
@@ -85,9 +81,7 @@ func (u *uploadFile) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to upload file to storage", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusInternalServerError).
-			WithErrors("Failed to upload file")
+		return *appctx.ResponseFromError(apperror.Internal(err))
 	}
 
 	// Generate URL (valid for 1 hour)
@@ -110,5 +104,5 @@ func (u *uploadFile) Serve(data appctx.Data) appctx.Response {
 	}
 
 	logger.Info("File uploaded successfully", lf)
-	return *appctx.NewResponse().WithCode(fiber.StatusOK).WithData(response)
+	return *appctx.NewResponse().WithCode(appctx.StatusOK).WithData(response)
 }

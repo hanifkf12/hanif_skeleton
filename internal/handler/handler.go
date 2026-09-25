@@ -9,8 +9,7 @@ import (
 
 func HttpRequest(xCtx *fiber.Ctx, svc contract.UseCase, conf *config.Config) appctx.Response {
 	data := appctx.Data{
-		FiberCtx: xCtx,
-		Cfg:      conf,
+		Request: NewFiberRequest(xCtx),
 	}
 
 	return svc.Serve(data)

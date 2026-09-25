@@ -1,15 +1,13 @@
 package usecase
 
 import (
-	"database/sql"
-	"errors"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/crypto"
 	"github.com/hanifkf12/hanif_skeleton/pkg/jwt"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
@@ -50,7 +48,7 @@ func NewLogin(userRepo repository.UserRepository, hasher *crypto.BcryptHasher, j
 }
 
 func (u *login) Serve(data appctx.Data) appctx.Response {
-	ctx := data.FiberCtx.UserContext()
+	ctx := data.Request.Context()
 	ctx, span := telemetry.StartSpan(ctx, "login.Serve")
 	defer span.End()
 
@@ -58,40 +56,36 @@ func (u *login) Serve(data appctx.Data) appctx.Response {
 
 	// Parse request
 	var req LoginRequest
-	if err := data.FiberCtx.BodyParser(&req); err != nil {
+	if err := data.Request.Body(&req); err != nil {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Invalid login request", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusBadRequest).
-			WithErrors("Invalid request body")
+		return *appctx.ResponseFromError(apperror.Invalid("Invalid request body"))
 	}
 	req.Username = strings.TrimSpace(req.Username)
 	if err := u.validator.Struct(req); err != nil {
 		telemetry.SpanError(ctx, err)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusBadRequest).
-			WithErrors("Username and password are required")
+		return *appctx.ResponseFromError(apperror.Invalid("Username and password are required"))
 	}
 
 	lf.Append(logger.Any("username", req.Username))
 
 	user, err := u.userRepo.GetUserByUsername(ctx, req.Username)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		// NotFound sengaja tidak di-log: ia adalah hasil normal dari username
+		// yang tidak dikenal, dan permintaan ini tetap dijawab 401 agar klien
+		// tidak bisa membedakan "user tidak ada" dari "password salah".
+		if apperror.KindOf(err) != apperror.KindNotFound {
 			telemetry.SpanError(ctx, err)
+			lf.Append(logger.Any("error", err.Error()))
 			logger.Error("Failed to look up user", lf)
 		}
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusUnauthorized).
-			WithErrors("Invalid credentials")
+		return *appctx.ResponseFromError(apperror.Unauthorized("Invalid credentials"))
 	}
 
 	if user.PasswordHash == "" || !u.hasher.ComparePassword(req.Password, user.PasswordHash) {
 		logger.Error("Login rejected", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusUnauthorized).
-			WithErrors("Invalid credentials")
+		return *appctx.ResponseFromError(apperror.Unauthorized("Invalid credentials"))
 	}
 
 	// Generate JWT token
@@ -107,9 +101,7 @@ func (u *login) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to generate token", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusInternalServerError).
-			WithErrors("Failed to generate token")
+		return *appctx.ResponseFromError(apperror.Internal(err))
 	}
 
 	response := LoginResponse{
@@ -122,7 +114,7 @@ func (u *login) Serve(data appctx.Data) appctx.Response {
 	}
 
 	logger.Info("Login successful", lf)
-	return *appctx.NewResponse().WithCode(fiber.StatusOK).WithData(response)
+	return *appctx.NewResponse().WithCode(appctx.StatusOK).WithData(response)
 }
 
 // RefreshToken usecase for refreshing JWT token
@@ -148,7 +140,7 @@ func NewRefreshToken(jwtInstance jwt.JWT) contract.UseCase {
 }
 
 func (u *refreshToken) Serve(data appctx.Data) appctx.Response {
-	ctx := data.FiberCtx.UserContext()
+	ctx := data.Request.Context()
 	ctx, span := telemetry.StartSpan(ctx, "refreshToken.Serve")
 	defer span.End()
 
@@ -156,13 +148,11 @@ func (u *refreshToken) Serve(data appctx.Data) appctx.Response {
 
 	// Parse request
 	var req RefreshTokenRequest
-	if err := data.FiberCtx.BodyParser(&req); err != nil {
+	if err := data.Request.Body(&req); err != nil {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Invalid refresh token request", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusBadRequest).
-			WithErrors("Invalid request body")
+		return *appctx.ResponseFromError(apperror.Invalid("Invalid request body"))
 	}
 
 	// Refresh token
@@ -171,9 +161,7 @@ func (u *refreshToken) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to refresh token", lf)
-		return *appctx.NewResponse().
-			WithCode(fiber.StatusUnauthorized).
-			WithErrors("Invalid or expired token")
+		return *appctx.ResponseFromError(apperror.Unauthorized("Invalid or expired token"))
 	}
 
 	response := RefreshTokenResponse{
@@ -182,5 +170,5 @@ func (u *refreshToken) Serve(data appctx.Data) appctx.Response {
 	}
 
 	logger.Info("Token refreshed successfully", lf)
-	return *appctx.NewResponse().WithCode(fiber.StatusOK).WithData(response)
+	return *appctx.NewResponse().WithCode(appctx.StatusOK).WithData(response)
 }

@@ -1,13 +1,15 @@
 package usecase
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"strconv"
+
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
-	"strconv"
+	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
 )
 
 type deleteUser struct {
@@ -19,36 +21,35 @@ func NewDeleteUser(userRepo repository.UserRepository) contract.UseCase {
 }
 
 func (u *deleteUser) Serve(data appctx.Data) appctx.Response {
-	var (
-		lf = logger.NewFields("DeleteUser")
-	)
+	ctx := data.Request.Context()
+	ctx, span := telemetry.StartSpan(ctx, "deleteUser.Serve")
+	defer span.End()
+
+	lf := logger.NewFields("DeleteUser").WithTrace(ctx)
 
 	// Parse user ID from path parameter
-	userID := data.FiberCtx.Params("id")
+	userID := data.Request.Param("id")
 	if userID == "" {
-		return *appctx.NewResponse().WithCode(fiber.StatusBadRequest).WithErrors("User ID is required")
+		return *appctx.ResponseFromError(apperror.Invalid("User ID is required"))
 	}
 
-	// Convert user ID to int64
 	id, err := strconv.ParseInt(userID, 10, 64)
 	if err != nil {
-		return *appctx.NewResponse().WithCode(fiber.StatusBadRequest).WithErrors("Invalid user ID format")
+		return *appctx.ResponseFromError(apperror.Invalid("Invalid user ID format"))
 	}
 
-	// Delete user from database
-	err = u.userRepo.DeleteUser(data.FiberCtx.Context(), id)
-	if err != nil {
+	if err := u.userRepo.DeleteUser(ctx, id); err != nil {
+		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to delete user", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusInternalServerError).WithErrors(err.Error())
+		return *appctx.ResponseFromError(err)
 	}
 
-	// Prepare response
 	resp := entity.DeleteUserResponse{
 		Message: "User deleted successfully",
 		ID:      id,
 	}
 
 	logger.Info("User deleted successfully", lf)
-	return *appctx.NewResponse().WithCode(fiber.StatusOK).WithData(resp)
+	return *appctx.NewResponse().WithCode(appctx.StatusOK).WithData(resp)
 }

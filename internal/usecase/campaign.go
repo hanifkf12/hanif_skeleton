@@ -1,7 +1,6 @@
 package usecase
 
 import (
-	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/internal/appctx"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
@@ -14,7 +13,7 @@ type campaign struct {
 }
 
 func (c *campaign) Serve(data appctx.Data) appctx.Response {
-	ctx := data.FiberCtx.UserContext()
+	ctx := data.Request.Context()
 	ctx, span := telemetry.StartSpan(ctx, "campaign.Serve")
 	defer span.End()
 
@@ -22,14 +21,15 @@ func (c *campaign) Serve(data appctx.Data) appctx.Response {
 
 	campaigns, err := c.campaignRepo.GetAll(ctx)
 	if err != nil {
+		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to get all campaigns", lf)
-		return *appctx.NewResponse().WithCode(fiber.StatusInternalServerError).WithErrors(err.Error())
+		return *appctx.ResponseFromError(err)
 	}
 
 	lf.Append(logger.Any("count", len(campaigns)))
 	logger.Info("Successfully retrieved all campaigns", lf)
-	return *appctx.NewResponse().WithCode(fiber.StatusOK).WithData(campaigns)
+	return *appctx.NewResponse().WithCode(appctx.StatusOK).WithData(campaigns)
 }
 
 func NewCampaign(campaignRepo repository.CampaignRepository) contract.UseCase {
