@@ -1,7 +1,14 @@
 .DS_Store
-.env
 .idea/
 .vscode/
+
+# Secrets. .env sengaja tidak dilacak: file itu berisi nilai asli.
+# .env.example tetap dilacak sebagai dokumentasi variabel yang dibutuhkan.
+# Aturan .env.* ada supaya varian seperti .env.local / .env.production
+# tidak ikut ter-commit saat ditambahkan nanti.
+.env
+.env.*
+!.env.example
 
 # Go build and test artifacts
 /bin/
