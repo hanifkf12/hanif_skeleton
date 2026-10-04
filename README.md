@@ -2,9 +2,71 @@
 
 Skeleton backend Go dengan Clean Architecture: satu codebase, tiga entry point (HTTP server, Pub/Sub worker, background worker) yang berbagi usecase dan repository yang sama.
 
+## Project Generator
+
+Buat project baru dengan binary CLI terpisah dari aplikasi:
+
+```bash
+make build-cli
+# Binary native tersedia di bin/skeleton; boleh dicopy ke folder/mesin lain.
+
+./bin/skeleton inventory-api https://github.com/hanifkf12/inventory-api.git
+```
+
+Kontrak: `skeleton nama_project git_url [flags]`.
+
+- `nama_project`: nama folder dan identitas aplikasi; huruf/digit ASCII, `_`, atau `-`,
+  diawali huruf/digit.
+- `git_url`: URL repository **project baru**, bukan template. URL menentukan Go module
+  dan remote `origin`; nama folder boleh berbeda dari nama repository.
+  Contoh di atas menghasilkan module `github.com/hanifkf12/inventory-api`.
+- Format URL: HTTP(S), `ssh://git@host/group/repo.git`, atau `git@host:group/repo.git`.
+  URL dengan token/password, query, atau fragment ditolak.
+
+| Option | Default | Fungsi |
+|---|---|---|
+| `--output`, `-o` | `.` | Folder induk; hasil dibuat di `<output>/<nama_project>` |
+| `--template-ref` | `main` | Branch, tag, atau commit template yang diambil |
+| `--no-git` | `false` | Jangan inisialisasi Git atau remote `origin` |
+
+```bash
+# Folder tujuan lain dan tanpa Git.
+./bin/skeleton billing-api git@github.com:hanifkf12/billing-api.git \
+  --output "$HOME/projects" --no-git
+
+# Template dipin ke commit; hasil tidak mengikuti perubahan branch main.
+./bin/skeleton inventory-api https://github.com/hanifkf12/inventory-api.git \
+  --template-ref e9896ff4350c22273a8a4efc194fc2ff0c105988
+```
+
+CLI mengambil template dari `https://github.com/hanifkf12/hanif_skeleton.git`.
+Default `main` mengikuti isi remote saat generator dijalankan, bukan perubahan lokal
+yang belum dipush. Gunakan tag/commit untuk hasil reproducible; commit yang dipakai
+ditampilkan setelah generate. Binary membutuhkan **Git 2.28+ dan akses ke repository
+template**, tetapi tidak membutuhkan Go atau checkout skeleton untuk generate.
+Go 1.27.1+ diperlukan untuk build CLI dan menjalankan project dari template terbaru.
+
+Generator mengganti module/import Go dan referensi module di dokumentasi, menyesuaikan
+identitas aplikasi, serta mempertahankan migrasi dan domain data. `.env` asli, metadata
+Git, konfigurasi editor, build artifacts, dan source generator tidak disertakan.
+`.env.example` tetap ada; symbolic link pada template ditolak. Folder tujuan yang sudah
+ada tidak ditimpa; output milik generator dibersihkan jika proses gagal.
+
+Secara default, hasil memakai repository Git baru di branch `main`, tanpa history/commit
+template, dengan `origin` sesuai `git_url`. CLI **tidak membuat repository di GitHub/GitLab,
+tidak commit, dan tidak push**; siapkan repository hosting sebelum push sendiri.
+Setelah generate, ikuti Setup di bawah untuk `.env`, database, dan service pendukung.
+
+Binary hanya bisa dicopy ke mesin dengan OS/arsitektur yang sesuai. Contoh cross-build:
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+  -o bin/skeleton-linux-amd64 ./cmd/skeleton
+```
+
 ## Requirements
 
-- Go 1.27+
+- Go 1.27.1+
 - PostgreSQL
 - Redis (opsional — hanya untuk `CACHE_DRIVER=redis` / `QUEUE_DRIVER=redis`)
 
@@ -56,7 +118,43 @@ go run main.go db:migrate --dir=... # direktori migrasi lain
 
 Flag `db:migrate` yang lain: `--table` (nama tabel migrasi, default `db`), `--verbose`, `--guide`.
 
-`cmd/root.go` adalah satu-satunya tempat perintah-perintah ini didaftarkan. Menambah entry point baru berarti menambah satu `*cobra.Command` dan satu direktori di bawah `cmd/`.
+`cmd/root.go` adalah tempat perintah runtime aplikasi didaftarkan. Menambah entry point aplikasi berarti menambah satu `*cobra.Command` dan satu direktori di bawah `cmd/`.
+
+### Menjalankan dari Zed
+
+Konfigurasi task `.zed/tasks.json` bersifat lokal dan diabaikan Git; tidak perlu mengubah
+konfigurasi global Zed. Untuk setup di mesin lain, buka `zed: open project tasks` dari
+Command Palette dan definisikan task memakai perintah pada tabel di bawah. Setiap task
+memakai `"cwd": "$ZED_WORKTREE_ROOT"` dan `"save": "all"`; task server/worker memakai
+`"use_new_terminal": false` dan `"allow_concurrent_runs": false`.
+
+1. Buka folder root project ini di Zed, bukan hanya `main.go`.
+2. Siapkan `.env` dan PostgreSQL sesuai bagian Setup di atas.
+3. Untuk HTTP server dan Pub/Sub consumer, pastikan OpenTelemetry collector menerima
+   koneksi gRPC di `localhost:4317`. Startup saat ini menunggu koneksi tersebut.
+   Worker membutuhkan Redis untuk queue `asynq`. Pub/Sub consumer juga membutuhkan
+   `GOOGLE_CLOUD_PROJECT` di environment proses, kredensial Google Cloud, dan subscription
+   `user-created-subscription`.
+4. Buka Command Palette (`Cmd+Shift+P` di macOS), pilih `task: spawn`, lalu pilih task:
+
+| Task Zed | Perintah |
+|---|---|
+| `Run HTTP server` | `make run-http` |
+| `Run background worker` | `make run-worker` |
+| `Run Pub/Sub consumer` | `make run-pubsub` |
+| `Run database migrations` | `go run main.go db:migrate` |
+| `Run all tests` | `make test` |
+| `Run go vet` | `make vet` |
+| `Show project CLI help` | `go run main.go --help` |
+
+Semua task menyimpan buffer yang diubah dan berjalan dari root project, sehingga aplikasi
+membaca `.env` lokal dan migrasi memakai direktori yang benar. Output tampil di terminal Zed.
+Task server/worker tidak mengizinkan instance paralel dari task yang sama. Untuk restart,
+hentikan proses dengan `Ctrl+C` di terminal task lalu pilih `task: rerun` dari Command Palette.
+Perubahan kode tidak memicu restart otomatis.
+
+Setelah HTTP server siap, cek `curl localhost:9000/health` (sesuaikan dengan `PORT` di `.env`).
+Gunakan `Show project CLI help` untuk mengecek toolchain tanpa menjalankan service atau migrasi.
 
 ## Architecture
 
