@@ -3,8 +3,8 @@ package middleware
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // TraceMiddleware extracts trace context from incoming requests and creates spans

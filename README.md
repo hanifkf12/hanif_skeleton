@@ -44,13 +44,15 @@ Default `main` mengikuti isi remote saat generator dijalankan, bukan perubahan l
 yang belum dipush. Gunakan tag/commit untuk hasil reproducible; commit yang dipakai
 ditampilkan setelah generate. Binary membutuhkan **Git 2.28+ dan akses ke repository
 template**, tetapi tidak membutuhkan Go atau checkout skeleton untuk generate.
-Go 1.24+ tetap diperlukan untuk build CLI dan menjalankan project hasilnya.
+Go 1.27.1+ diperlukan untuk build CLI dan menjalankan project dari template terbaru.
 
 Generator mengganti module/import Go dan referensi module di dokumentasi, menyesuaikan
 identitas aplikasi, serta mempertahankan migrasi dan domain data. `.env` asli, metadata
 Git, konfigurasi editor, build artifacts, dan source generator tidak disertakan.
 `.env.example` tetap ada; symbolic link pada template ditolak. Folder tujuan yang sudah
 ada tidak ditimpa; output milik generator dibersihkan jika proses gagal.
+Dependency dan checksum khusus generator juga dikeluarkan agar hasil generate lolos
+check CI `go mod tidy`; modul yang masih di-import aplikasi tetap dipertahankan.
 
 Secara default, hasil memakai repository Git baru di branch `main`, tanpa history/commit
 template, dengan `origin` sesuai `git_url`. CLI **tidak membuat repository di GitHub/GitLab,
@@ -66,7 +68,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
 
 ## Requirements
 
-- Go 1.24+
+- Go 1.27.1+
 - PostgreSQL
 - Redis (opsional — hanya untuk `CACHE_DRIVER=redis` / `QUEUE_DRIVER=redis`)
 

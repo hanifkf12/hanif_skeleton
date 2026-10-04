@@ -17,6 +17,8 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+const generatorModule = "golang.org/x/mod"
+
 func rewriteProject(ctx context.Context, directory string, options Options, newModule string) error {
 	moduleFile := filepath.Join(directory, "go.mod")
 	data, err := os.ReadFile(moduleFile)
@@ -34,15 +36,9 @@ func rewriteProject(ctx context.Context, directory string, options Options, newM
 	if err := parsed.AddModuleStmt(newModule); err != nil {
 		return fmt.Errorf("rewrite module declaration: %w", err)
 	}
-	updated, err := parsed.Format()
-	if err != nil {
-		return fmt.Errorf("format module declaration: %w", err)
-	}
-	if err := os.WriteFile(moduleFile, updated, 0o644); err != nil {
-		return fmt.Errorf("write generated go.mod: %w", err)
-	}
 
-	return filepath.WalkDir(directory, func(path string, entry fs.DirEntry, walkErr error) error {
+	keepsGeneratorModule := false
+	err = filepath.WalkDir(directory, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -76,7 +72,9 @@ func rewriteProject(ctx context.Context, directory string, options Options, newM
 		switch {
 		case isGo:
 			rewriteIdentities := !strings.HasPrefix(relative, "database/") && !strings.HasPrefix(relative, "internal/entity/")
-			rewritten, err = rewriteGo(relative, original, oldModule, newModule, options.Name, rewriteIdentities)
+			var importsGeneratorModule bool
+			rewritten, importsGeneratorModule, err = rewriteGo(relative, original, oldModule, newModule, options.Name, rewriteIdentities)
+			keepsGeneratorModule = keepsGeneratorModule || importsGeneratorModule
 		case relative == ".env.example":
 			rewritten = []byte(rewriteAssignments(string(original), map[string]string{
 				"NAME":       options.Name,
@@ -104,6 +102,28 @@ func rewriteProject(ctx context.Context, directory string, options Options, newM
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// The generator sources are excluded. Do not carry their dependency into
+	// generated projects unless another retained package actually imports it.
+	if !keepsGeneratorModule {
+		if err := parsed.DropRequire(generatorModule); err != nil {
+			return fmt.Errorf("remove generator module: %w", err)
+		}
+		if err := removeGeneratorChecksums(filepath.Join(directory, "go.sum")); err != nil {
+			return err
+		}
+	}
+	parsed.Cleanup()
+	updated, err := parsed.Format()
+	if err != nil {
+		return fmt.Errorf("format module declaration: %w", err)
+	}
+	if err := os.WriteFile(moduleFile, updated, 0o644); err != nil {
+		return fmt.Errorf("write generated go.mod: %w", err)
+	}
+	return nil
 }
 
 type sourceEdit struct {
@@ -112,20 +132,24 @@ type sourceEdit struct {
 	text  string
 }
 
-func rewriteGo(filename string, source []byte, oldModule, newModule, name string, rewriteIdentities bool) ([]byte, error) {
+func rewriteGo(filename string, source []byte, oldModule, newModule, name string, rewriteIdentities bool) ([]byte, bool, error) {
 	positions := token.NewFileSet()
 	file, err := parser.ParseFile(positions, filename, source, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("parse template Go file %q: %w", filename, err)
+		return nil, false, fmt.Errorf("parse template Go file %q: %w", filename, err)
 	}
 	var edits []sourceEdit
 	imports := make(map[*ast.BasicLit]bool, len(file.Imports))
+	importsGeneratorModule := false
 	for _, declaration := range file.Imports {
 		literal := declaration.Path
 		imports[literal] = true
 		path, err := strconv.Unquote(literal.Value)
 		if err != nil {
-			return nil, fmt.Errorf("parse import in %q: %w", filename, err)
+			return nil, false, fmt.Errorf("parse import in %q: %w", filename, err)
+		}
+		if path == generatorModule || strings.HasPrefix(path, generatorModule+"/") {
+			importsGeneratorModule = true
 		}
 		if path == oldModule || strings.HasPrefix(path, oldModule+"/") {
 			value := newModule + strings.TrimPrefix(path, oldModule)
@@ -149,7 +173,7 @@ func rewriteGo(filename string, source []byte, oldModule, newModule, name string
 		})
 	}
 	if len(edits) == 0 {
-		return source, nil
+		return source, importsGeneratorModule, nil
 	}
 	sort.Slice(edits, func(i, j int) bool { return edits[i].start < edits[j].start })
 	var rewritten bytes.Buffer
@@ -160,7 +184,37 @@ func rewriteGo(filename string, source []byte, oldModule, newModule, name string
 		previous = edit.end
 	}
 	rewritten.Write(source[previous:])
-	return rewritten.Bytes(), nil
+	return rewritten.Bytes(), importsGeneratorModule, nil
+}
+
+func removeGeneratorChecksums(path string) error {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read generated go.sum: %w", err)
+	}
+	var kept bytes.Buffer
+	kept.Grow(len(data))
+	for remaining := data; len(remaining) > 0; {
+		end := bytes.IndexByte(remaining, '\n')
+		if end < 0 {
+			end = len(remaining) - 1
+		}
+		line := remaining[:end+1]
+		if !bytes.HasPrefix(line, []byte(generatorModule+" ")) {
+			kept.Write(line)
+		}
+		remaining = remaining[end+1:]
+	}
+	if kept.Len() == len(data) {
+		return nil
+	}
+	if err := os.WriteFile(path, kept.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("write generated go.sum: %w", err)
+	}
+	return nil
 }
 
 func serviceIdentity(value, name string) (string, bool) {

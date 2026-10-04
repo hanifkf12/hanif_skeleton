@@ -27,11 +27,11 @@ type Request struct {
 	Params      map[string]string
 	QueryParams map[string]string
 	Headers     map[string]string
-	BodyBytes []byte
-	File      *multipart.FileHeader
-	FileErr   error
-	Actor     entity.Actor
-	Auth      bool
+	BodyBytes   []byte
+	File        *multipart.FileHeader
+	FileErr     error
+	Actor       entity.Actor
+	Auth        bool
 }
 
 var _ appctx.Request = (*Request)(nil)
