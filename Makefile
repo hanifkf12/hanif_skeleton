@@ -14,3 +14,8 @@ test:
 
 vet:
 	@go vet ./...
+
+# Project generator
+.PHONY: build-cli
+build-cli:
+	@CGO_ENABLED=0 go build -trimpath -o bin/skeleton ./cmd/skeleton
