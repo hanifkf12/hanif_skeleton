@@ -4,7 +4,7 @@ Skeleton backend Go dengan Clean Architecture: satu codebase, tiga entry point (
 
 ## Requirements
 
-- Go 1.24+
+- Go 1.27+
 - PostgreSQL
 - Redis (opsional — hanya untuk `CACHE_DRIVER=redis` / `QUEUE_DRIVER=redis`)
 
