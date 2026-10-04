@@ -51,6 +51,8 @@ identitas aplikasi, serta mempertahankan migrasi dan domain data. `.env` asli, m
 Git, konfigurasi editor, build artifacts, dan source generator tidak disertakan.
 `.env.example` tetap ada; symbolic link pada template ditolak. Folder tujuan yang sudah
 ada tidak ditimpa; output milik generator dibersihkan jika proses gagal.
+Dependency dan checksum khusus generator juga dikeluarkan agar hasil generate lolos
+check CI `go mod tidy`; modul yang masih di-import aplikasi tetap dipertahankan.
 
 Secara default, hasil memakai repository Git baru di branch `main`, tanpa history/commit
 template, dengan `origin` sesuai `git_url`. CLI **tidak membuat repository di GitHub/GitLab,

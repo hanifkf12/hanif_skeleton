@@ -81,6 +81,69 @@ const CryptoSalt = "hanif-skeleton-salt"
 	assert.Contains(t, generatedSource, `"hanif-skeleton-salt"`)
 }
 
+func TestGenerateRemovesGeneratorOnlyDependencyAndPassesTidyCheck(t *testing.T) {
+	isolateGit(t)
+	template, _ := newTemplate(t, map[string]string{
+		"go.mod": "module " + fixtureModule + "\n\ngo 1.24.0\n\n" + `require (
+	git.example/first v0.0.0
+	golang.org/x/mod v0.28.0
+	git.example/last v0.0.0
+)
+
+replace (
+	git.example/first => ./deps/first
+	git.example/last => ./deps/last
+)
+`,
+		"go.sum": "golang.org/x/mod v0.28.0 h1:gQBtGhjxykdjY9YhZpSlZIsbnaE2+PgjfLWUQTnoZ1U=\n" +
+			"golang.org/x/mod v0.28.0/go.mod h1:yfB/L0NOf/kmEbXjzCPOx1iK1fRutOydrCMsqRhEBxI=\n",
+		"internal/projectgen/tools.go": "package projectgen\n\nimport _ \"golang.org/x/mod/module\"\n",
+		"main.go":                      "package main\n\nimport (\n\t\"git.example/first\"\n\t\"git.example/last\"\n)\n\nfunc main() { _ = first.Value + last.Value }\n",
+		"deps/first/go.mod":            "module git.example/first\n\ngo 1.24.0\n",
+		"deps/first/value.go":          "package first\n\nconst Value = 1\n",
+		"deps/last/go.mod":             "module git.example/last\n\ngo 1.24.0\n",
+		"deps/last/value.go":           "package last\n\nconst Value = 2\n",
+	})
+	result, err := generate(context.Background(), Options{
+		Name: "tidy-project", GitURL: "https://git.example/team/tidy-project.git", OutputDir: t.TempDir(), NoGit: true,
+	}, template)
+	require.NoError(t, err)
+	assertPathAbsent(t, filepath.Join(result.Directory, "internal/projectgen"))
+	moduleFile, err := modfile.Parse("go.mod", []byte(readGeneratedFile(t, result.Directory, "go.mod")), nil)
+	require.NoError(t, err)
+	require.Len(t, moduleFile.Require, 2)
+	assert.Equal(t, "git.example/first", moduleFile.Require[0].Mod.Path)
+	assert.Equal(t, "git.example/last", moduleFile.Require[1].Mod.Path)
+	assert.Empty(t, readGeneratedFile(t, result.Directory, "go.sum"))
+
+	cmd := exec.Command("go", "mod", "tidy", "-diff")
+	cmd.Dir = result.Directory
+	cmd.Env = append(os.Environ(), "GOPROXY=off", "GOSUMDB=off", "GOWORK=off", "GOENV=off", "GOTOOLCHAIN=local")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "generated project must pass the inherited CI tidy check without network access: %s", output)
+}
+
+func TestGenerateRetainsModuleToolsUsedByApplication(t *testing.T) {
+	isolateGit(t)
+	const sum = "golang.org/x/mod v0.28.0 h1:gQBtGhjxykdjY9YhZpSlZIsbnaE2+PgjfLWUQTnoZ1U=\n" +
+		"golang.org/x/mod v0.28.0/go.mod h1:yfB/L0NOf/kmEbXjzCPOx1iK1fRutOydrCMsqRhEBxI=\n"
+	template, _ := newTemplate(t, map[string]string{
+		"go.mod":  "module " + fixtureModule + "\n\ngo 1.24.0\n\nrequire golang.org/x/mod v0.28.0\n",
+		"go.sum":  sum,
+		"main.go": "package main\n\nimport \"golang.org/x/mod/module\"\n\nfunc main() { _ = module.CheckPath(\"git.example/team/app\") }\n",
+	})
+	result, err := generate(context.Background(), Options{
+		Name: "module-tools-app", GitURL: "https://git.example/team/module-tools-app.git", OutputDir: t.TempDir(), NoGit: true,
+	}, template)
+	require.NoError(t, err)
+	moduleFile, err := modfile.Parse("go.mod", []byte(readGeneratedFile(t, result.Directory, "go.mod")), nil)
+	require.NoError(t, err)
+	require.Len(t, moduleFile.Require, 1)
+	assert.Equal(t, "golang.org/x/mod", moduleFile.Require[0].Mod.Path)
+	assert.Equal(t, "v0.28.0", moduleFile.Require[0].Mod.Version)
+	assert.Equal(t, sum, readGeneratedFile(t, result.Directory, "go.sum"))
+}
+
 func TestGenerateSupportsHostedGitURLForms(t *testing.T) {
 	isolateGit(t)
 	template, _ := newTemplate(t, nil)
