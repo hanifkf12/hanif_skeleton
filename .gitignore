@@ -1,6 +1,7 @@
 .DS_Store
 .idea/
 .vscode/
+.zed/
 
 # Secrets. .env sengaja tidak dilacak: file itu berisi nilai asli.
 # .env.example tetap dilacak sebagai dokumentasi variabel yang dibutuhkan.

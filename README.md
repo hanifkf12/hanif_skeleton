@@ -58,6 +58,42 @@ Flag `db:migrate` yang lain: `--table` (nama tabel migrasi, default `db`), `--ve
 
 `cmd/root.go` adalah satu-satunya tempat perintah-perintah ini didaftarkan. Menambah entry point baru berarti menambah satu `*cobra.Command` dan satu direktori di bawah `cmd/`.
 
+### Menjalankan dari Zed
+
+Konfigurasi task `.zed/tasks.json` bersifat lokal dan diabaikan Git; tidak perlu mengubah
+konfigurasi global Zed. Untuk setup di mesin lain, buka `zed: open project tasks` dari
+Command Palette dan definisikan task memakai perintah pada tabel di bawah. Setiap task
+memakai `"cwd": "$ZED_WORKTREE_ROOT"` dan `"save": "all"`; task server/worker memakai
+`"use_new_terminal": false` dan `"allow_concurrent_runs": false`.
+
+1. Buka folder root project ini di Zed, bukan hanya `main.go`.
+2. Siapkan `.env` dan PostgreSQL sesuai bagian Setup di atas.
+3. Untuk HTTP server dan Pub/Sub consumer, pastikan OpenTelemetry collector menerima
+   koneksi gRPC di `localhost:4317`. Startup saat ini menunggu koneksi tersebut.
+   Worker membutuhkan Redis untuk queue `asynq`. Pub/Sub consumer juga membutuhkan
+   `GOOGLE_CLOUD_PROJECT` di environment proses, kredensial Google Cloud, dan subscription
+   `user-created-subscription`.
+4. Buka Command Palette (`Cmd+Shift+P` di macOS), pilih `task: spawn`, lalu pilih task:
+
+| Task Zed | Perintah |
+|---|---|
+| `Run HTTP server` | `make run-http` |
+| `Run background worker` | `make run-worker` |
+| `Run Pub/Sub consumer` | `make run-pubsub` |
+| `Run database migrations` | `go run main.go db:migrate` |
+| `Run all tests` | `make test` |
+| `Run go vet` | `make vet` |
+| `Show project CLI help` | `go run main.go --help` |
+
+Semua task menyimpan buffer yang diubah dan berjalan dari root project, sehingga aplikasi
+membaca `.env` lokal dan migrasi memakai direktori yang benar. Output tampil di terminal Zed.
+Task server/worker tidak mengizinkan instance paralel dari task yang sama. Untuk restart,
+hentikan proses dengan `Ctrl+C` di terminal task lalu pilih `task: rerun` dari Command Palette.
+Perubahan kode tidak memicu restart otomatis.
+
+Setelah HTTP server siap, cek `curl localhost:9000/health` (sesuaikan dengan `PORT` di `.env`).
+Gunakan `Show project CLI help` untuk mengecek toolchain tanpa menjalankan service atau migrasi.
+
 ## Architecture
 
 Arah dependensi: **`entity` ← `usecase` ← `handler` / `router`**, dengan `repository` sebagai port yang diimplementasikan di luar dan di-inject dari `router`.
