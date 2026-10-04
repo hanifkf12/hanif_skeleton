@@ -12,13 +12,13 @@ type mockData struct {
 }
 
 type mockDB struct {
-	data         map[string]*mockData
+	data          map[string]*mockData
 	inTransaction bool
 }
 
 func NewMockDB() Database {
 	return &mockDB{
-		data:         make(map[string]*mockData),
+		data:          make(map[string]*mockData),
 		inTransaction: false,
 	}
 }
