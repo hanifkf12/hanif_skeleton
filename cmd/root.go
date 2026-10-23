@@ -14,19 +14,13 @@ func Start() {
 	rootCmd := &cobra.Command{}
 
 	migrateCmd := &cobra.Command{
-		Use:   "db:migrate",
-		Short: "database migration",
+		Use:                "db:migrate [command]",
+		Short:              "database migration",
+		DisableFlagParsing: true,
 		Run: func(c *cobra.Command, args []string) {
-			migration.MigrateDatabase()
+			migration.MigrateDatabase(args)
 		},
 	}
-
-	migrateCmd.Flags().BoolP("version", "", false, "print version")
-	migrateCmd.Flags().StringP("dir", "", "database/migration/", "directory with migration files")
-	migrateCmd.Flags().StringP("table", "", "db", "migrations table name")
-	migrateCmd.Flags().BoolP("verbose", "", false, "enable verbose mode")
-	migrateCmd.Flags().BoolP("guide", "", false, "print help")
-
 	cmd := []*cobra.Command{
 		{
 			Use:   "http",

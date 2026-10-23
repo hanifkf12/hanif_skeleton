@@ -1,9 +1,11 @@
 package sqlbuilder
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/hanifkf12/hanif_skeleton/pkg/databasex"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -88,6 +90,52 @@ func TestQueryBuilder_WhereIn(t *testing.T) {
 	expectedQuery := "SELECT * FROM users WHERE id IN (?, ?, ?, ?, ?)"
 	assert.Equal(t, expectedQuery, query)
 	assert.Equal(t, values, args)
+}
+
+func TestQueryBuilder_WhereInEmptyMatchesNothing(t *testing.T) {
+	query, args := NewQueryBuilder().
+		Table("campaigns").
+		WhereIn("id", []interface{}{}).
+		Build()
+
+	assert.Equal(t, "SELECT * FROM campaigns WHERE 1 = 0", query)
+	assert.Empty(t, args)
+}
+
+// countDB records the query Count sends and returns a fixed total.
+type countDB struct {
+	databasex.Database
+	query string
+}
+
+func (d *countDB) Get(_ context.Context, dst interface{}, query string, _ ...interface{}) error {
+	d.query = query
+	*(dst.(*int64)) = 25
+	return nil
+}
+
+func (d *countDB) Select(context.Context, interface{}, string, ...interface{}) error { return nil }
+
+func TestModel_GetWithPaginationCountsAllRowsAndClampsPerPage(t *testing.T) {
+	db := &countDB{}
+	var rows []TestUser
+
+	result, err := NewModel(db, nil).Table("users").OrderBy("id", "DESC").GetWithPagination(context.Background(), &rows, 0, 0)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "SELECT COUNT(*) as count FROM users", db.query)
+	assert.Equal(t, 1, result.Page)
+	assert.Equal(t, 10, result.PerPage)
+	assert.Equal(t, 3, result.TotalPages)
+}
+
+func TestModel_CountAfterPaginateIgnoresLimitOffset(t *testing.T) {
+	db := &countDB{}
+
+	_, err := NewModel(db, nil).Table("users").Paginate(2, 10).Count(context.Background())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "SELECT COUNT(*) as count FROM users", db.query)
 }
 
 func TestQueryBuilder_WhereBetween(t *testing.T) {

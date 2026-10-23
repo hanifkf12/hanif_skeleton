@@ -7,12 +7,12 @@ import (
 	"log"
 )
 
-func MigrateDatabase() {
+func MigrateDatabase(args []string) {
 	cfg, err := config.LoadAllConfigs()
 
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Failed to load configuration file: %v", err))
 	}
 
-	databasex.DatabaseMigration(cfg)
+	databasex.DatabaseMigration(cfg, args)
 }

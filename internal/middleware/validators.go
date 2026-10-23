@@ -106,34 +106,3 @@ func ContentTypeValidator(allowedTypes []string) Middleware {
 		return *appctx.NewResponse().WithCode(appctx.StatusOK)
 	}
 }
-
-// IPWhitelist validates client IP against whitelist
-// Returns 200 if in whitelist, 403 if not
-func IPWhitelist(allowedIPs []string) Middleware {
-	return func(ctx *fiber.Ctx, cfg *config.Config) appctx.Response {
-		lf := logger.NewFields("Middleware.IPWhitelist")
-
-		clientIP := ctx.IP()
-		lf.Append(logger.Any("client_ip", clientIP))
-
-		// Check if IP is in whitelist
-		valid := false
-		for _, allowedIP := range allowedIPs {
-			if clientIP == allowedIP {
-				valid = true
-				break
-			}
-		}
-
-		if !valid {
-			lf.Append(logger.Any("error", "IP not in whitelist"))
-			logger.Error("IP whitelist check failed", lf)
-			return *appctx.NewResponse().
-				WithCode(appctx.StatusForbidden).
-				WithErrors("Access denied")
-		}
-
-		logger.Info("IP whitelist check passed", lf)
-		return *appctx.NewResponse().WithCode(appctx.StatusOK)
-	}
-}

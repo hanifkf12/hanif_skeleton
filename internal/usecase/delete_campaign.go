@@ -35,7 +35,7 @@ func (d *deleteCampaign) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Campaign not found", lf)
-		return *appctx.ResponseFromError(apperror.NotFound("Campaign not found"))
+		return *appctx.ResponseFromError(err)
 	}
 
 	if err := d.campaignRepo.Delete(ctx, id); err != nil {

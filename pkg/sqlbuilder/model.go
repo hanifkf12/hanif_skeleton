@@ -168,16 +168,14 @@ func (m *Model) Exec(ctx context.Context) (sql.Result, error) {
 
 // Count returns the count of rows
 func (m *Model) Count(ctx context.Context) (int64, error) {
-	// Store original columns
-	originalCols := m.builder.columns
-
-	// Set count query
+	// COUNT must ignore pagination and ordering of the same builder.
+	originalCols, limit, offset, orderBy := m.builder.columns, m.builder.limit, m.builder.offset, m.builder.orderBy
 	m.builder.Select("COUNT(*) as count")
+	m.builder.limit, m.builder.offset, m.builder.orderBy = 0, 0, nil
 
 	query, args := m.builder.Build()
 
-	// Restore original columns
-	m.builder.columns = originalCols
+	m.builder.columns, m.builder.limit, m.builder.offset, m.builder.orderBy = originalCols, limit, offset, orderBy
 
 	var count int64
 	err := m.db.Get(ctx, &count, query, args...)
@@ -291,6 +289,13 @@ type PaginationResult struct {
 
 // GetWithPagination executes query with pagination info
 func (m *Model) GetWithPagination(ctx context.Context, dest interface{}, page, perPage int) (*PaginationResult, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 10
+	}
+
 	// Get total count first
 	total, err := m.Count(ctx)
 	if err != nil {

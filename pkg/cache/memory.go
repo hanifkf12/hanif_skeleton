@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -10,9 +11,10 @@ import (
 // MemoryCache implements Cache interface using in-memory map
 // For development/testing purposes only - use Redis in production
 type MemoryCache struct {
-	data   map[string]*cacheItem
-	mu     sync.RWMutex
-	stopCh chan struct{}
+	data      map[string]*cacheItem
+	mu        sync.RWMutex
+	stopCh    chan struct{}
+	closeOnce sync.Once
 }
 
 type cacheItem struct {
@@ -33,21 +35,59 @@ func NewMemoryCache() Cache {
 	return mc
 }
 
+// encodeValue matches RedisCache.Set so both drivers return identical strings.
+func encodeValue(value interface{}) (string, error) {
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	case []byte:
+		return string(v), nil
+	default:
+		data, err := json.Marshal(value)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal value: %w", err)
+		}
+		return string(data), nil
+	}
+}
+
 // Set sets a key-value pair with optional expiry
 func (c *MemoryCache) Set(ctx context.Context, key string, value interface{}, expiry time.Duration) error {
+	encoded, err := encodeValue(value)
+	if err != nil {
+		return err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	item := &cacheItem{
-		value: value,
+	c.data[key] = newItem(encoded, expiry)
+	return nil
+}
+
+// SetNX sets a key only if it doesn't exist (atomic)
+func (c *MemoryCache) SetNX(ctx context.Context, key string, value interface{}, expiry time.Duration) (bool, error) {
+	encoded, err := encodeValue(value)
+	if err != nil {
+		return false, err
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if item, exists := c.data[key]; exists && (item.expiresAt.IsZero() || time.Now().Before(item.expiresAt)) {
+		return false, nil
+	}
+	c.data[key] = newItem(encoded, expiry)
+	return true, nil
+}
+
+func newItem(value string, expiry time.Duration) *cacheItem {
+	item := &cacheItem{value: value}
 	if expiry > 0 {
 		item.expiresAt = time.Now().Add(expiry)
 	}
-
-	c.data[key] = item
-	return nil
+	return item
 }
 
 // Get gets a value by key
@@ -183,7 +223,7 @@ func (c *MemoryCache) FlushAll(ctx context.Context) error {
 
 // Close closes the cache
 func (c *MemoryCache) Close() error {
-	close(c.stopCh)
+	c.closeOnce.Do(func() { close(c.stopCh) })
 	return nil
 }
 

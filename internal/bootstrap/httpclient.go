@@ -29,10 +29,6 @@ func RegistryHTTPClient(cfg *config.Config) httpclient.HTTPClient {
 	}
 
 	followRedirect := cfg.HTTPClient.FollowRedirect
-	// Default to true if not set
-	if timeout == 30*time.Second && maxRetries == 3 {
-		followRedirect = true
-	}
 
 	lf.Append(logger.Any("timeout", timeout.String()))
 	lf.Append(logger.Any("max_retries", maxRetries))

@@ -19,17 +19,6 @@ func (u *user) Serve(data appctx.Data) appctx.Response {
 	var (
 		lf = logger.NewFields("GetUsers").WithTrace(ctx)
 	)
-
-	lf.Append(logger.Any("user_id", 123))
-	lf.Append(logger.Any("user_name", "John Doe"))
-	lf.Append(logger.Any("user_email", "john.doe@example.com"))
-	lf.Append(logger.Any("user_phone", "1234567890"))
-	lf.Append(logger.Any("user_address", "123 Main St, Anytown, USA"))
-	lf.Append(logger.Any("user_city", "Anytown"))
-	lf.Append(logger.Any("user_state", "CA"))
-	lf.Append(logger.Any("user_zip", "12345"))
-	lf.Append(logger.Any("user_country", "USA"))
-
 	users, err := u.userRepo.GetUsers(ctx)
 	if err != nil {
 		telemetry.SpanError(ctx, err)
