@@ -1,16 +1,12 @@
 package config
 
 import (
-	"log"
-
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
 	App        `mapstructure:",squash"`
 	Database   `mapstructure:",squash"`
-	Storage    `mapstructure:",squash"`
 	Crypto     `mapstructure:",squash"`
 	JWT        `mapstructure:",squash"`
 	Cache      `mapstructure:",squash"`
@@ -21,20 +17,15 @@ type Config struct {
 func LoadAllConfigs() (*Config, error) {
 	var cfg Config
 
-	viper.AutomaticEnv()
+	v := viper.NewWithOptions(viper.ExperimentalBindStruct())
+	v.AutomaticEnv()
 
-	viper.WatchConfig()
+	v.SetConfigType("env")
+	v.AddConfigPath(".")
+	v.SetConfigName(".env")
+	_ = v.MergeInConfig()
 
-	viper.SetConfigType("env")
-	viper.AddConfigPath(".")
-	viper.SetConfigName(".env")
-	_ = viper.MergeInConfig()
-
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		log.Println("Config file changed:", e.Name)
-	})
-
-	err := viper.Unmarshal(&cfg)
+	err := v.Unmarshal(&cfg)
 	if err != nil {
 		return nil, err
 	}

@@ -106,12 +106,22 @@ func (c *standardClient) Do(ctx context.Context, req *Request) (*Response, error
 	lf.Append(logger.Any("method", req.Method))
 	lf.Append(logger.Any("url", req.URL))
 
+	// Only idempotent methods are retried: re-sending a POST/PATCH can duplicate side effects.
+	maxRetries := 0
+	switch req.Method {
+	case http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete, http.MethodOptions:
+		maxRetries = c.config.MaxRetries
+	}
+
 	var lastErr error
-	for attempt := 0; attempt <= c.config.MaxRetries; attempt++ {
+	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			lf.Append(logger.Any("retry_attempt", attempt))
 			logger.Info("Retrying HTTP request", lf)
-			time.Sleep(c.config.RetryWaitTime)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(c.config.RetryWaitTime):
+			}
 		}
 
 		resp, err := c.doRequest(ctx, req)
@@ -119,22 +129,24 @@ func (c *standardClient) Do(ctx context.Context, req *Request) (*Response, error
 			return resp, nil
 		}
 
-		lastErr = err
 		if err != nil {
+			lastErr = err
 			lf.Append(logger.Any("error", err.Error()))
 			logger.Error("HTTP request failed", lf)
-		} else {
-			lf.Append(logger.Any("status_code", resp.StatusCode))
-			logger.Error("HTTP request returned error status", lf)
+			continue
 		}
 
-		// Don't retry on client errors (4xx)
-		if resp != nil && resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			return resp, fmt.Errorf("HTTP request failed with status %d", resp.StatusCode)
+		lastErr = fmt.Errorf("HTTP request failed with status %d", resp.StatusCode)
+		lf.Append(logger.Any("status_code", resp.StatusCode))
+		logger.Error("HTTP request returned error status", lf)
+
+		// Only 5xx is retried; 3xx (redirects disabled) and 4xx are final.
+		if resp.StatusCode < 500 {
+			return resp, lastErr
 		}
 	}
 
-	return nil, fmt.Errorf("HTTP request failed after %d attempts: %w", c.config.MaxRetries+1, lastErr)
+	return nil, fmt.Errorf("HTTP request failed after %d attempts: %w", maxRetries+1, lastErr)
 }
 
 // doRequest executes a single HTTP request

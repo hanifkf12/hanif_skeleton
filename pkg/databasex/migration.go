@@ -4,30 +4,31 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/hanifkf12/hanif_skeleton/pkg/config"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
-var (
-	flags   = flag.NewFlagSet("db:migrate", flag.ExitOnError)
-	dir     = flags.String("dir", "database/migration", "directory with migration files")
-	table   = flags.String("table", "db_migration", "migrations table name")
-	verbose = flags.Bool("verbose", false, "enable verbose mode")
-	help    = flags.Bool("guide", false, "print help")
-	version = flags.Bool("version", false, "print version")
-)
+func DatabaseMigration(cfg *config.Config, rawArgs []string) {
+	fs := flag.NewFlagSet("db:migrate", flag.ContinueOnError)
+	dir := fs.String("dir", "database/migration", "directory with migration files")
+	table := fs.String("table", "db_migration", "migrations table name")
+	verbose := fs.Bool("verbose", false, "enable verbose mode")
+	help := fs.Bool("guide", false, "print help")
+	version := fs.Bool("version", false, "print version")
 
-func DatabaseMigration(cfg *config.Config) {
-
-	flags.Usage = usage
-	flags.Parse(os.Args[2:])
+	fs.Usage = usage
+	if err := fs.Parse(rawArgs); err != nil {
+		return
+	}
 
 	if *version {
 		fmt.Println(goose.VERSION)
+		return
+	}
+	if *help {
+		usage()
 		return
 	}
 	if *verbose {
@@ -36,16 +37,22 @@ func DatabaseMigration(cfg *config.Config) {
 
 	goose.SetTableName(*table)
 
-	args := flags.Args()
-
-	if len(args) == 0 || *help {
-		flags.Usage()
-		return
+	args := fs.Args()
+	command := "up"
+	if len(args) > 0 {
+		command = args[0]
 	}
 
-	switch args[0] {
+	switch command {
+	case "help":
+		usage()
+		return
 	case "create":
-		if err := goose.Run("create", nil, *dir, args[1:]...); err != nil {
+		var createArgs []string
+		if len(args) > 1 {
+			createArgs = args[1:]
+		}
+		if err := goose.Run("create", nil, *dir, createArgs...); err != nil {
 			log.Fatalf("goose run: %v", err)
 		}
 		return
@@ -56,21 +63,10 @@ func DatabaseMigration(cfg *config.Config) {
 		return
 	}
 
-	if len(args) < 1 {
-		flags.Usage()
-		return
-	}
-
-	command := args[0]
-
 	var dbDriver string
 	var dbConnStr string
 
 	switch cfg.Database.Driver {
-	case "mysql":
-		dbDriver = "mysql"
-		dbConnStr = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
-			cfg.Database.Username, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
 	case "postgres", "pgx":
 		dbDriver = cfg.Database.Driver
 		dbConnStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
@@ -80,7 +76,6 @@ func DatabaseMigration(cfg *config.Config) {
 	}
 
 	db, err := goose.OpenDBWithDriver(dbDriver, dbConnStr)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -92,8 +87,8 @@ func DatabaseMigration(cfg *config.Config) {
 	}()
 
 	arguments := []string{}
-	if len(args) > 3 {
-		arguments = append(arguments, args[3:]...)
+	if len(args) > 1 {
+		arguments = append(arguments, args[1:]...)
 	}
 
 	if err := goose.Run(command, db, *dir, arguments...); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/pkg/cache"
@@ -57,24 +58,15 @@ func (j *SendEmailJob) Handle(ctx context.Context, payload []byte) error {
 	lf.Append(logger.Any("to", data.To))
 	lf.Append(logger.Any("subject", data.Subject))
 
-	// Check cache first (prevent duplicate sends)
+	// Claim the key before sending so concurrent deliveries cannot both send.
 	cacheKey := cache.NewCacheKey("email").Build(fmt.Sprintf("%d", data.UserID), data.Subject)
-	exists, _ := j.cache.Exists(ctx, cacheKey)
-	if exists {
+	claimed, err := j.cache.SetNX(ctx, cacheKey, "sent", time.Hour)
+	if err != nil {
+		return fmt.Errorf("failed to claim email dedupe key: %w", err)
+	}
+	if !claimed {
 		logger.Info("Email already sent (cached), skipping", lf)
 		return nil
-	}
-
-	// Get users from repository (example: verify user exists)
-	// Note: In production, you'd have a GetUserByID method
-	users, err := j.userRepo.GetUsers(ctx)
-	if err != nil {
-		lf.Append(logger.Any("error", err.Error()))
-		logger.Error("Failed to get users from database", lf)
-		// Don't fail the job, just log the error
-		logger.Info("Continuing with email send despite user lookup failure", lf)
-	} else if len(users) > 0 {
-		lf.Append(logger.Any("user_count", len(users)))
 	}
 
 	// Call email service API via HTTP client
@@ -90,19 +82,18 @@ func (j *SendEmailJob) Handle(ctx context.Context, payload []byte) error {
 
 	resp, err := j.httpClient.Post(ctx, "https://api.emailservice.com/send", emailPayload, headers)
 	if err != nil {
+		_ = j.cache.Delete(ctx, cacheKey) // release the claim so a retry can send
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to send email via API", lf)
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 
 	if !resp.IsSuccess() {
+		_ = j.cache.Delete(ctx, cacheKey)
 		lf.Append(logger.Any("status_code", resp.StatusCode))
 		logger.Error("Email service returned error", lf)
 		return fmt.Errorf("email service error: status %d", resp.StatusCode)
 	}
-
-	// Cache the result to prevent duplicate sends (1 hour)
-	j.cache.Set(ctx, cacheKey, "sent", 1*60*60) // 1 hour
 
 	logger.Info("Email sent successfully", lf)
 	return nil

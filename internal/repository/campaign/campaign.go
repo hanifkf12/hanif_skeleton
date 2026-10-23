@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/databasex"
 	"github.com/hanifkf12/hanif_skeleton/pkg/sqlbuilder"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
@@ -25,9 +26,9 @@ func (c *campaignRepository) Create(ctx context.Context, campaign *entity.Campai
 	model := sqlbuilder.NewModel(c.db, campaign)
 	_, err := model.
 		Table("campaigns").
-		Insert(ctx, campaign)
+		InsertWithFields(ctx, campaign, "id", "name", "target_donation", "end_date")
 
-	return err
+	return repository.MapSQLError(err, "Failed to create campaign")
 }
 
 func (c *campaignRepository) Update(ctx context.Context, campaign *entity.Campaign) error {
@@ -36,12 +37,23 @@ func (c *campaignRepository) Update(ctx context.Context, campaign *entity.Campai
 
 	// Using SQL Builder for cleaner code
 	model := sqlbuilder.NewModel(c.db, campaign)
-	_, err := model.
+	result, err := model.
 		Table("campaigns").
 		Where("id = ?", campaign.ID).
 		Update(ctx, campaign)
+	if err != nil {
+		return repository.MapSQLError(err, "Campaign not found")
+	}
 
-	return err
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return apperror.Internal(err)
+	}
+	if affected == 0 {
+		return apperror.NotFound("Campaign not found")
+	}
+
+	return nil
 }
 
 func (c *campaignRepository) Delete(ctx context.Context, id string) error {
@@ -50,12 +62,23 @@ func (c *campaignRepository) Delete(ctx context.Context, id string) error {
 
 	// Using SQL Builder for cleaner code
 	model := sqlbuilder.NewModel(c.db, nil)
-	_, err := model.
+	result, err := model.
 		Table("campaigns").
 		Where("id = ?", id).
 		Delete(ctx)
+	if err != nil {
+		return repository.MapSQLError(err, "Campaign not found")
+	}
 
-	return err
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return apperror.Internal(err)
+	}
+	if affected == 0 {
+		return apperror.NotFound("Campaign not found")
+	}
+
+	return nil
 }
 
 func (c *campaignRepository) GetByID(ctx context.Context, id string) (*entity.Campaign, error) {
@@ -68,11 +91,12 @@ func (c *campaignRepository) GetByID(ctx context.Context, id string) (*entity.Ca
 	model := sqlbuilder.NewModel(c.db, &campaign)
 	err := model.
 		Table("campaigns").
+		Select("id", "name", "target_donation", "end_date", "created_at", "updated_at").
 		Where("id = ?", id).
 		First(ctx, &campaign)
 
 	if err != nil {
-		return nil, err
+		return nil, repository.MapSQLError(err, "Campaign not found")
 	}
 
 	return &campaign, nil
@@ -84,15 +108,15 @@ func (c *campaignRepository) GetAll(ctx context.Context) ([]entity.Campaign, err
 
 	var campaigns []entity.Campaign
 
-	// Using SQL Builder for cleaner code
 	model := sqlbuilder.NewModel(c.db, &entity.Campaign{})
 	err := model.
 		Table("campaigns").
+		Select("id", "name", "target_donation", "end_date", "created_at", "updated_at").
 		OrderBy("created_at", "DESC").
 		GetAll(ctx, &campaigns)
 
 	if err != nil {
-		return nil, err
+		return nil, repository.MapSQLError(err, "Campaigns not found")
 	}
 
 	return campaigns, nil

@@ -1,9 +1,7 @@
 package app
 
 import (
-	"fmt"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/hanifkf12/hanif_skeleton/internal/router"
 	"github.com/hanifkf12/hanif_skeleton/pkg/config"
 	"github.com/hanifkf12/hanif_skeleton/pkg/middleware"
@@ -24,8 +22,6 @@ func InitializeApp(cfg *config.Config) *App {
 
 	rtr.Route()
 
-	// Initialize default config (Assign the middleware to /metrics)
-	f.Get("/metrics", monitor.New())
 	return &App{
 		App: f,
 		Cfg: cfg,
@@ -33,5 +29,9 @@ func InitializeApp(cfg *config.Config) *App {
 }
 
 func (app *App) Run() error {
-	return app.Listen(fmt.Sprintf("%s:%s", "localhost", app.Cfg.App.Port))
+	port := app.Cfg.App.Port
+	if port == "" {
+		port = "9000"
+	}
+	return app.Listen(":" + port)
 }

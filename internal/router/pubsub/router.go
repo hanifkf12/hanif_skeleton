@@ -6,9 +6,16 @@ import (
 	"cloud.google.com/go/pubsub"
 	"github.com/hanifkf12/hanif_skeleton/internal/handler"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/config"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 )
+
+// isPermanent reports errors that redelivery cannot fix.
+func isPermanent(err error) bool {
+	kind := apperror.KindOf(err)
+	return kind == apperror.KindInvalid || kind == apperror.KindConflict
+}
 
 // ConsumerHandlerFunc wraps the consumer with handler
 type ConsumerHandlerFunc func(ctx context.Context, msg *pubsub.Message, consumer contract.PubSubConsumer, conf *config.Config)
@@ -74,10 +81,16 @@ func (r *router) Start(ctx context.Context) error {
 				// Call the handler (similar to HTTP handler pattern)
 				resp := handler.PubSubHandler(ctx, msg, sc.Consumer, r.cfg)
 
-				if resp.Success {
+				switch {
+				case resp.Success:
 					msg.Ack()
 					logger.Info("Message processed successfully", msgLogger)
-				} else {
+				case isPermanent(resp.Error):
+					// Redelivery cannot fix bad input or an already-applied write; ack to stop the loop.
+					msg.Ack()
+					msgLogger.Append(logger.Any("error", resp.Error))
+					logger.Error("Message dropped: permanent failure", msgLogger)
+				default:
 					msg.Nack()
 					msgLogger.Append(logger.Any("error", resp.Error))
 					logger.Error("Message processing failed", msgLogger)

@@ -5,10 +5,6 @@ import (
 	"database/sql"
 )
 
-const (
-	constStringMysqlFormat = ""
-)
-
 type Database interface {
 	QueryX(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 	QueryRowX(ctx context.Context, query string, args ...interface{}) *sql.Row

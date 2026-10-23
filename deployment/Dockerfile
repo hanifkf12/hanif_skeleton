@@ -28,10 +28,10 @@ COPY --from=builder /app/app .
 COPY database/migration /app/database/migration
 
 # Set environment variables (optional, adjust as needed)
-ENV APP_PORT=9000
+ENV PORT=9000
 
 # Expose the application's port
-EXPOSE ${APP_PORT}
+EXPOSE ${PORT}
 
 # Command to run the application
-CMD ["sh", "-c", "./app db:migrate up && ./app http-start"]
+CMD ["sh", "-c", "./app db:migrate up && exec ./app http"]

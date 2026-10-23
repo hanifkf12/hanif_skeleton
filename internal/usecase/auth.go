@@ -12,7 +12,15 @@ import (
 	"github.com/hanifkf12/hanif_skeleton/pkg/jwt"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
+	"golang.org/x/crypto/bcrypt"
 )
+
+var dummyPasswordHash string
+
+func init() {
+	h, _ := bcrypt.GenerateFromPassword([]byte("dummy-password-for-timing-mitigation"), bcrypt.DefaultCost)
+	dummyPasswordHash = string(h)
+}
 
 // Login usecase for user authentication
 type login struct {
@@ -72,14 +80,12 @@ func (u *login) Serve(data appctx.Data) appctx.Response {
 
 	user, err := u.userRepo.GetUserByUsername(ctx, req.Username)
 	if err != nil {
-		// NotFound sengaja tidak di-log: ia adalah hasil normal dari username
-		// yang tidak dikenal, dan permintaan ini tetap dijawab 401 agar klien
-		// tidak bisa membedakan "user tidak ada" dari "password salah".
 		if apperror.KindOf(err) != apperror.KindNotFound {
 			telemetry.SpanError(ctx, err)
 			lf.Append(logger.Any("error", err.Error()))
 			logger.Error("Failed to look up user", lf)
 		}
+		_ = u.hasher.ComparePassword(req.Password, dummyPasswordHash)
 		return *appctx.ResponseFromError(apperror.Unauthorized("Invalid credentials"))
 	}
 
@@ -119,7 +125,8 @@ func (u *login) Serve(data appctx.Data) appctx.Response {
 
 // RefreshToken usecase for refreshing JWT token
 type refreshToken struct {
-	jwt jwt.JWT
+	userRepo repository.UserRepository
+	jwt      jwt.JWT
 }
 
 // RefreshTokenRequest represents refresh token request
@@ -133,12 +140,12 @@ type RefreshTokenResponse struct {
 	ExpiresIn string `json:"expires_in"`
 }
 
-func NewRefreshToken(jwtInstance jwt.JWT) contract.UseCase {
+func NewRefreshToken(userRepo repository.UserRepository, jwtInstance jwt.JWT) contract.UseCase {
 	return &refreshToken{
-		jwt: jwtInstance,
+		userRepo: userRepo,
+		jwt:      jwtInstance,
 	}
 }
-
 func (u *refreshToken) Serve(data appctx.Data) appctx.Response {
 	ctx := data.Request.Context()
 	ctx, span := telemetry.StartSpan(ctx, "refreshToken.Serve")
@@ -155,13 +162,35 @@ func (u *refreshToken) Serve(data appctx.Data) appctx.Response {
 		return *appctx.ResponseFromError(apperror.Invalid("Invalid request body"))
 	}
 
-	// Refresh token
-	newToken, err := u.jwt.Refresh(req.Token)
+	claims, err := u.jwt.Parse(req.Token)
 	if err != nil {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
-		logger.Error("Failed to refresh token", lf)
+		logger.Error("Failed to parse token", lf)
 		return *appctx.ResponseFromError(apperror.Unauthorized("Invalid or expired token"))
+	}
+
+	user, err := u.userRepo.GetUserByUsername(ctx, claims.Username)
+	if err != nil {
+		telemetry.SpanError(ctx, err)
+		lf.Append(logger.Any("error", err.Error()))
+		logger.Error("User not found or inactive for refresh", lf)
+		return *appctx.ResponseFromError(apperror.Unauthorized("Invalid or expired token"))
+	}
+
+	newClaims := jwt.Claims{
+		UserID:   user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+		Role:     user.Role,
+	}
+
+	newToken, err := u.jwt.Generate(newClaims)
+	if err != nil {
+		telemetry.SpanError(ctx, err)
+		lf.Append(logger.Any("error", err.Error()))
+		logger.Error("Failed to generate token", lf)
+		return *appctx.ResponseFromError(apperror.Internal(err))
 	}
 
 	response := RefreshTokenResponse{

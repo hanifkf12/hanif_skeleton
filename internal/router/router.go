@@ -62,7 +62,7 @@ func (rtr *router) response(ctx *fiber.Ctx, resp appctx.Response) error {
 }
 
 func (rtr *router) Route() {
-	db := bootstrap.RegistryDatabase(rtr.cfg, false)
+	db := bootstrap.RegistryDatabase(rtr.cfg)
 	userRepository := userRepo.NewUserRepository(db)
 	campaignRepository := campaign.NewCampaignRepository(db)
 
@@ -79,12 +79,16 @@ func (rtr *router) Route() {
 
 	// Auth routes - public
 	loginUseCase := usecase.NewLogin(userRepository, hasher, jwtInstance)
-	rtr.fiber.Post("/auth/login", rtr.handle(
+	rtr.fiber.Post("/auth/login", rtr.handleWithMiddleware(
 		handler.HttpRequest,
 		loginUseCase,
+		middleware.RateLimit(middleware.RateLimitConfig{
+			MaxRequests: 10,
+			WindowSize:  60,
+		}),
 	))
 
-	refreshTokenUseCase := usecase.NewRefreshToken(jwtInstance)
+	refreshTokenUseCase := usecase.NewRefreshToken(userRepository, jwtInstance)
 	rtr.fiber.Post("/auth/refresh", rtr.handle(
 		handler.HttpRequest,
 		refreshTokenUseCase,
@@ -96,6 +100,7 @@ func (rtr *router) Route() {
 		handler.HttpRequest,
 		userUseCase,
 		middleware.JWTAuth(jwtInstance),
+		middleware.RequireRole([]string{"admin", "superadmin"}),
 	))
 
 	// Protected campaign routes
@@ -145,7 +150,7 @@ func (rtr *router) Route() {
 		handler.HttpRequest,
 		createUserUseCase,
 		middleware.JWTAuth(jwtInstance),
-		middleware.RequireRole([]string{"admin"}), // Only admin can create users
+		middleware.RequireRole([]string{"admin", "superadmin"}),
 		middleware.ContentTypeValidator([]string{"application/json"}),
 	))
 
@@ -170,35 +175,8 @@ func (rtr *router) Route() {
 		handler.HttpRequest,
 		deleteUserUseCase,
 		middleware.JWTAuth(jwtInstance),
-		middleware.RequireRole([]string{"admin"}), // Only admin can delete
+		middleware.RequireRole([]string{"admin", "superadmin"}),
 	))
-
-	// Example: HMAC protected endpoint (for webhooks, external APIs, etc.)
-	// rtr.fiber.Post("/webhooks/payment", rtr.handleWithMiddleware(
-	// 	handler.HttpRequest,
-	// 	paymentWebhookUseCase,
-	// 	middleware.HMACAuth("your-hmac-secret-key"),
-	// 	middleware.ContentTypeValidator([]string{"application/json"}),
-	// ))
-
-	// Example: IP whitelist for admin endpoints
-	// rtr.fiber.Get("/admin/stats", rtr.handleWithMiddleware(
-	// 	handler.HttpRequest,
-	// 	statsUseCase,
-	// 	middleware.IPWhitelist([]string{"127.0.0.1", "10.0.0.1"}),
-	// 	middleware.JWTAuth(jwtInstance),
-	// 	middleware.RequireRole([]string{"admin"}),
-	// ))
-
-	// Example: Rate limited public endpoint
-	// rtr.fiber.Post("/public/contact", rtr.handleWithMiddleware(
-	// 	handler.HttpRequest,
-	// 	contactUseCase,
-	// 	middleware.RateLimit(middleware.RateLimitConfig{
-	// 		MaxRequests: 10,
-	// 		WindowSize:  60, // 10 requests per 60 seconds
-	// 	}),
-	// ))
 }
 
 func NewRouter(cfg *config.Config, fiber fiber.Router) Router {

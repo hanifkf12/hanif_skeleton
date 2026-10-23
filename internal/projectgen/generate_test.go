@@ -272,6 +272,19 @@ func TestGenerateFiltersTrackedArtifactsAndCustomizesProjectIdentity(t *testing.
 	assert.Equal(t, domain, readGeneratedFile(t, result.Directory, "internal/entity/testdata/domain.json"))
 }
 
+func TestGenerateREADMEClonesIntoProjectFolderWhenRepoNameDiffers(t *testing.T) {
+	isolateGit(t)
+	template, _ := newTemplate(t, map[string]string{
+		"README.md": "# Hanif Skeleton\n\n```sh\ngit clone https://github.com/hanifkf12/hanif_skeleton.git\ncd hanif_skeleton\n```\n",
+	})
+	result, err := generate(context.Background(), Options{
+		Name: "inventory-api", GitURL: "https://git.example/team/my-service.git", OutputDir: t.TempDir(), NoGit: true,
+	}, template)
+	require.NoError(t, err)
+	readme := readGeneratedFile(t, result.Directory, "README.md")
+	assert.Contains(t, readme, "git clone https://git.example/team/my-service.git inventory-api\ncd inventory-api\n")
+}
+
 func TestGenerateNeverOverwritesExistingTargets(t *testing.T) {
 	isolateGit(t)
 	template, _ := newTemplate(t, nil)

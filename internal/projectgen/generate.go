@@ -78,8 +78,10 @@ func generate(ctx context.Context, options Options, templateURL string) (result 
 	if err != nil {
 		return Result{}, fmt.Errorf("identify project directory: %w", err)
 	}
+	// Clean up on any non-success exit (error or panic), never after success.
+	succeeded := false
 	defer func() {
-		if err == nil {
+		if succeeded {
 			return
 		}
 		result = Result{}
@@ -105,7 +107,8 @@ func generate(ctx context.Context, options Options, templateURL string) (result 
 		return Result{}, fmt.Errorf("create temporary template directory: %w", err)
 	}
 	defer func() {
-		if cleanupErr := os.RemoveAll(template); cleanupErr != nil {
+		// A leftover scratch dir must not turn a finished project into a failure.
+		if cleanupErr := os.RemoveAll(template); cleanupErr != nil && !succeeded {
 			err = errors.Join(err, fmt.Errorf("clean temporary template: %w", cleanupErr))
 		}
 	}()
@@ -139,6 +142,7 @@ func generate(ctx context.Context, options Options, templateURL string) (result 
 	if err = ctx.Err(); err != nil {
 		return Result{}, err
 	}
+	succeeded = true
 	return Result{Directory: directory, ModulePath: modulePath, TemplateCommit: strings.TrimSpace(commit)}, nil
 }
 

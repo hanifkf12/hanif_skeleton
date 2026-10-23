@@ -28,7 +28,6 @@ func InitTracer(serviceName string) (func(), error) {
 	// Create OTLP exporter
 	conn, err := grpc.DialContext(ctx, "localhost:4317",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC connection to collector: %w", err)

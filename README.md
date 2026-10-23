@@ -95,7 +95,6 @@ Sisanya sudah punya nilai default yang bisa dipakai apa adanya. Driver tiap subs
 | `DB_DRIVER` | `postgres` | `postgres` |
 | `CACHE_DRIVER` | `memory`, `redis` | `memory` |
 | `QUEUE_DRIVER` | `asynq` (butuh Redis) | `asynq` |
-| `STORAGE_DRIVER` | `local`, `gcs`, `s3` | `local` |
 
 Migrasi lalu jalankan server:
 
@@ -114,11 +113,14 @@ make run-worker    # background worker  (go run main.go worker)
 make run-pubsub    # Pub/Sub consumer   (go run main.go pubsub)
 make test          # go test ./...
 make vet           # go vet ./...
-go run main.go db:migrate           # jalankan migrasi
+go run main.go db:migrate           # jalankan migrasi (default: up)
+go run main.go db:migrate status    # perintah goose lain: up-to VERSION, down, status, ...
 go run main.go db:migrate --dir=... # direktori migrasi lain
 ```
 
-Flag `db:migrate` yang lain: `--table` (nama tabel migrasi, default `db`), `--verbose`, `--guide`.
+Flag `db:migrate` yang lain: `--table` (nama tabel migrasi, default `db_migration`), `--verbose`, `--guide`.
+
+Konfigurasi dibaca dari `.env` **dan** environment proses (environment menang), jadi container/k8s cukup memakai env var tanpa file `.env`.
 
 `cmd/root.go` adalah tempat perintah runtime aplikasi didaftarkan. Menambah entry point aplikasi berarti menambah satu `*cobra.Command` dan satu direktori di bawah `cmd/`.
 
@@ -214,13 +216,13 @@ Alasan error ditulis ke field `errors`, dan `message` dibiarkan kosong — konsi
 | Method | Path | Auth | Middleware tambahan |
 |---|---|---|---|
 | GET | `/health` | — | — |
-| POST | `/auth/login` | — | — |
-| POST | `/auth/refresh` | — | — |
-| GET | `/users` | JWT | — |
-| POST | `/users` | JWT | `RequireRole(["admin"])`, content-type JSON |
+| POST | `/auth/login` | — | rate limit 10/menit per IP (per proses) |
+| POST | `/auth/refresh` | — | token di-generate ulang dari data user terbaru di database |
+| GET | `/users` | JWT | `RequireRole(["admin","superadmin"])` |
+| POST | `/users` | JWT | `RequireRole(["admin","superadmin"])`, content-type JSON |
 | GET | `/users/:id` | JWT | self **atau** admin (aturan domain) |
 | PUT | `/users/:id` | JWT | content-type JSON, self **atau** admin (aturan domain) |
-| DELETE | `/users/:id` | JWT | `RequireRole(["admin"])` |
+| DELETE | `/users/:id` | JWT | `RequireRole(["admin","superadmin"])` |
 | GET | `/campaigns` | JWT | — |
 | GET | `/campaigns/:id` | JWT | — |
 | POST | `/campaigns` | JWT | content-type JSON |
@@ -268,7 +270,7 @@ require.Equal(t, 0, repo.updateCalls, "percobaan yang ditolak tidak boleh menyen
 - **Ganti `JWT_SECRET_KEY` dan `ENCRYPTION_KEY` sebelum deploy.** Nilai di `.env.example` adalah placeholder literal. `JWT_SECRET_KEY` yang diketahui penyerang berarti siapa pun bisa menerbitkan token yang valid untuk aplikasi ini.
 - `ENCRYPTION_KEY` hanya dibutuhkan kalau `pkg/crypto` dipakai. Library-nya tersedia, tapi belum ada usecase yang memanggilnya.
 - Password di-hash dengan bcrypt. Karena bcrypt memotong input di 72 byte dan mengembalikan `ErrPasswordTooLong` untuk yang lebih panjang, validator membatasi `max=72` sehingga password kepanjangan menjadi `400`, bukan `500`.
-- Login yang gagal selalu menjawab `401` dengan pesan yang sama, baik username tidak dikenal maupun password salah — klien tidak bisa membedakan keberadaan akun.
+- Login yang gagal selalu menjawab `401` dengan pesan yang sama, baik username tidak dikenal maupun password salah — dan username yang tidak dikenal tetap menjalankan satu bcrypt compare, sehingga waktu respons juga tidak membocorkan keberadaan akun.
 
 ## Menambah Endpoint Baru
 

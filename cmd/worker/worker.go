@@ -40,7 +40,7 @@ func runWorker(cmd *cobra.Command, args []string) {
 	logger.Info("Starting job queue worker", lf)
 
 	// Initialize dependencies
-	db := bootstrap.RegistryDatabase(cfg, false)
+	db := bootstrap.RegistryDatabase(cfg)
 	cache := bootstrap.RegistryCache(cfg)
 	httpClient := bootstrap.RegistryHTTPClient(cfg)
 
@@ -125,17 +125,13 @@ func runWorker(cmd *cobra.Command, args []string) {
 		return wrapper.ProcessTask(ctx, task.Type(), task.Payload())
 	})
 
-	// Start server in goroutine
-	go func() {
-		lf.Append(logger.Any("redis_addr", addr))
-		lf.Append(logger.Any("concurrency", 10))
-		logger.Info("Asynq worker started", lf)
-
-		if err := srv.Run(mux); err != nil {
-			lf.Append(logger.Any("error", err.Error()))
-			logger.Error("Worker error", lf)
-		}
-	}()
+	lf.Append(logger.Any("redis_addr", addr))
+	lf.Append(logger.Any("concurrency", 10))
+	// Start returns startup errors (e.g. Redis unreachable) instead of idling.
+	if err := srv.Start(mux); err != nil {
+		logger.Fatal(fmt.Sprintf("Worker error: %v", err))
+	}
+	logger.Info("Asynq worker started", lf)
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)

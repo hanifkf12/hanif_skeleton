@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -49,7 +50,7 @@ func NewAsynqServer(registry JobRegistry) *asynqServer {
 func (s *asynqServer) ProcessTask(ctx context.Context, jobType string, payload []byte) error {
 	handler, exists := s.registry.Get(jobType)
 	if !exists {
-		return nil // Skip unknown jobs
+		return fmt.Errorf("no handler registered for job type %q", jobType)
 	}
 
 	return handler(ctx, payload)

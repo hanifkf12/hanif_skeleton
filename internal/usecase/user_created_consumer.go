@@ -8,6 +8,7 @@ import (
 	"github.com/hanifkf12/hanif_skeleton/internal/entity"
 	"github.com/hanifkf12/hanif_skeleton/internal/repository"
 	"github.com/hanifkf12/hanif_skeleton/internal/usecase/contract"
+	"github.com/hanifkf12/hanif_skeleton/pkg/apperror"
 	"github.com/hanifkf12/hanif_skeleton/pkg/crypto"
 	"github.com/hanifkf12/hanif_skeleton/pkg/logger"
 	"github.com/hanifkf12/hanif_skeleton/pkg/telemetry"
@@ -53,12 +54,12 @@ func (c *userCreatedConsumer) Consume(data appctx.PubSubData) appctx.PubSubRespo
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to parse message data", lf)
-		return *appctx.NewPubSubResponse().WithError(err)
+		return *appctx.NewPubSubResponse().WithError(apperror.Wrap(err, apperror.KindInvalid, "Invalid message data"))
 	}
 	if err := c.validator.Struct(payload); err != nil {
 		telemetry.SpanError(ctx, err)
 		logger.Error("Invalid user created message", lf)
-		return *appctx.NewPubSubResponse().WithError(err)
+		return *appctx.NewPubSubResponse().WithError(apperror.Wrap(err, apperror.KindInvalid, "Invalid message data"))
 	}
 
 	passwordHash, err := c.hasher.HashPassword(payload.Password)
@@ -72,7 +73,7 @@ func (c *userCreatedConsumer) Consume(data appctx.PubSubData) appctx.PubSubRespo
 	if err != nil {
 		telemetry.SpanError(ctx, err)
 		logger.Error("Invalid user data in message", lf)
-		return *appctx.NewPubSubResponse().WithError(err)
+		return *appctx.NewPubSubResponse().WithError(apperror.Wrap(err, apperror.KindInvalid, "Invalid user data"))
 	}
 
 	lf.Append(logger.Any("username", input.Username))

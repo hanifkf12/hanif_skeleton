@@ -10,6 +10,9 @@ type Cache interface {
 	// Set sets a key-value pair with optional expiry
 	Set(ctx context.Context, key string, value interface{}, expiry time.Duration) error
 
+	// SetNX sets a key only if it does not exist; reports whether it was set
+	SetNX(ctx context.Context, key string, value interface{}, expiry time.Duration) (bool, error)
+
 	// Get gets a value by key
 	Get(ctx context.Context, key string) (string, error)
 

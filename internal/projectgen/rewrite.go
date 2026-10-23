@@ -315,6 +315,9 @@ func rewriteREADME(text, oldModule, newModule string, options Options) string {
 			titled = true
 		} else if trimmed == "cd "+oldName || trimmed == "cd hanif_skeleton" {
 			lines[i] = "cd " + options.Name + ending
+		} else if trimmed == "git clone "+options.GitURL {
+			// The folder name may differ from the repo name; clone into it so the next `cd` works.
+			lines[i] = strings.TrimRight(line, "\r\n") + " " + options.Name + ending
 		}
 	}
 	return strings.Join(lines, "")

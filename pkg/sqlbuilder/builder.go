@@ -152,7 +152,8 @@ func (qb *QueryBuilder) OrWhere(condition string, args ...interface{}) *QueryBui
 // WhereIn adds a WHERE IN clause
 func (qb *QueryBuilder) WhereIn(column string, values []interface{}) *QueryBuilder {
 	if len(values) == 0 {
-		return qb
+		// IN () matches nothing; dropping the clause would match every row.
+		return qb.Where("1 = 0")
 	}
 	placeholders := make([]string, len(values))
 	for i := range values {

@@ -48,7 +48,7 @@ func Start() {
 	defer client.Close()
 
 	// Initialize database and repositories
-	db := bootstrap.RegistryDatabase(cfg, false)
+	db := bootstrap.RegistryDatabase(cfg)
 	userRepository := userRepo.NewUserRepository(db)
 	hasher := bootstrap.RegistryBcryptHasher(cfg)
 

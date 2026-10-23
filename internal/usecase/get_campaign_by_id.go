@@ -39,7 +39,7 @@ func (c *getCampaignByID) Serve(data appctx.Data) appctx.Response {
 		telemetry.SpanError(ctx, err)
 		lf.Append(logger.Any("error", err.Error()))
 		logger.Error("Failed to get campaign", lf)
-		return *appctx.ResponseFromError(apperror.NotFound("Campaign not found"))
+		return *appctx.ResponseFromError(err)
 	}
 
 	resp := entity.GetCampaignByIDResponse{
